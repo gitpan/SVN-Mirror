@@ -1,3 +1,13 @@
+[Changes for 0.51 - Dec 20, 2004]
+
+* Get the real last-modified revision.  This fixes skip-to mirroring.
+
+* mod_dav_svn doesn't like ra connection anchored at root to do
+  check_path.  Use check_path on the first ra session instead.
+
+* regex cleanups; in particular, regex metacharacters in paths
+  are now properly mirrored. [Autrijus]
+
 [Changes for 0.50 - Nov 10, 2004]
 
 * Workaround fsfs/win32 txn_commit bug in close_edit of mirror editor.

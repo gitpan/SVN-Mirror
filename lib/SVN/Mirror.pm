@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.50';
+our $VERSION = '0.51';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -14,9 +14,9 @@ SVN::Mirror - Mirror remote repository to local Subversion repository
 =head1 SYNOPSIS
 
  my $m = SVN::Mirror->new (source => $url,
-			   target => '/path/to/repository',
+			   repost => '/path/to/repository',
 			   target_path => '/mirror/project1'
-			   target_create => 1,
+			   repos_create => 1,
 			   skip_to => 100
 			  );
  $m->init;
@@ -68,8 +68,6 @@ sub new {
     # XXX: legacy argument to be removed.
     $self->{repospath} ||= $self->{target};
     $self->{repos_create} ||= $self->{target_create};
-    $self->{target} ||= $self->{repospath};
-    $self->{target_create} ||= $self->{repos_create};
 
     die "no repository specified" unless $self->{repospath} || $self->{repos};
 
@@ -267,6 +265,7 @@ sub is_initialized {
         $self->{fs}->revision_root($self->{headrev})->node_prop('/', 'svm:source');
     }
     else {
+	# XXX: verify this is a valid mirror too.
         $self->{root}->check_path ($self->{target_path}) != $SVN::Node::none;
     }
 }

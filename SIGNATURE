@@ -1,12 +1,12 @@
 This file contains message digests of all files listed in MANIFEST,
-signed via the Module::Signature module, version 0.41.
+signed via the Module::Signature module, version 0.42.
 
 To verify the content in this distribution, first make sure you have
 Module::Signature installed, then type:
 
     % cpansign -v
 
-It would check each file's integrity, as well as the signature's
+It will check each file's integrity, as well as the signature's
 validity.  If "==> Signature verified OK! <==" is not displayed,
 the distribution may already have been compromised, and you should
 not run its Makefile.PL or Build.PL.
@@ -14,9 +14,9 @@ not run its Makefile.PL or Build.PL.
 -----BEGIN PGP SIGNED MESSAGE-----
 Hash: SHA1
 
-SHA1 016e0723e9823804a16252e175a335fffe697737 CHANGES
+SHA1 1f3d7c5360faf32415cc560e2cbba3acc6063609 CHANGES
 SHA1 07936d00e1c61716cd7db706f6c02b2ef25bab4e MANIFEST
-SHA1 411c53695624ef1a47f26fa9666e3d57dbb8e6e6 META.yml
+SHA1 4931e8beb6b250d73e8d04c85b70110a36c80ab7 META.yml
 SHA1 9e4cd8eca6a77c9087afde3717fce3b91a2edc77 Makefile.PL
 SHA1 b39cfebf1c1d8e353e5c0a2628b94bd91d96ad66 README
 SHA1 76b454f5cd08b3d7e032640e071d4562ee58cf46 TODO
@@ -33,8 +33,8 @@ SHA1 6fca1d05c6b9a8f10865de5be4fefb9bfa7a52e9 inc/Module/Install/Metadata.pm
 SHA1 2e6f5004ac895a26c41f043bf8fa5efb4f5b21c4 inc/Module/Install/Scripts.pm
 SHA1 6b051a6d3ed824df40343a7ff09b66282e1783c3 inc/Module/Install/Win32.pm
 SHA1 77f82ce7c623e05304ac9aae05bcd1a5558fadbb inc/Module/Install/WriteAll.pm
-SHA1 e4eb07b39978e3415b3b5d278ca9a214530db31d lib/SVN/Mirror.pm
-SHA1 2c5c44bb3da64b788ba7507ff884bb49d36e7189 lib/SVN/Mirror/Ra.pm
+SHA1 a7a8cc4e44c33e34117d9101645a7ecd91878f45 lib/SVN/Mirror.pm
+SHA1 5fa3becaf313925bee460832966d5f0db447d922 lib/SVN/Mirror/Ra.pm
 SHA1 31fc19f899164b467869bd5ddd46ffc6d94d6873 lib/SVN/Mirror/VCP.pm
 SHA1 0e2288e4ba90514fdb4838d4326d5af191422982 t/1use.t
 SHA1 eabb122b5ef3f5c8aec17e5e40cf72356747b68d t/2basic.t
@@ -67,7 +67,7 @@ SHA1 5e3dfa993bb5089b418c5e8ffe79cacb93de099f t/test_repo.dump
 -----BEGIN PGP SIGNATURE-----
 Version: GnuPG v1.2.6 (FreeBSD)
 
-iD8DBQFBkig3k1XldlEkA5YRAnHLAJ0eLwgzVy82LBKB2dAFeF1kMEHxhgCeLB+l
-DbVcz90Yeomnr12fqy+8p2s=
-=xN49
+iD8DBQFBxvATk1XldlEkA5YRAr8gAJ9mpG3iJt+ZBR6JGq1GfmflpWNQaACgjTjV
+wmTyMnBaTpsY+vpDZH9VBu8=
+=kBlf
 -----END PGP SIGNATURE-----

@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.50';
+$VERSION = '0.51';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -75,12 +75,19 @@ sub init_state {
     $self->{source_path} = $path;
     $self->{fromrev} = 0;
 
+    # XXX: abort txn before dying
     $self->_check_overlap;
 
-    # check if mirror source is already a mirror
+    # check if the url exists
+    if ($ra->check_path ('', -1) != $SVN::Node::dir) {
+	$txn->abort;
+	die "$self->{source} is not a directory.\n";
+    }
+
     $ra = $self->_new_ra (url => $self->{source_root})
 	unless $self->{source} eq $self->{source_root};
 
+    # check if mirror source is already a mirror
     # older SVN::RA will return Reporter so prop would be undef
     my (undef, undef, $prop) = $ra->get_dir ('', -1);
     if ($prop && $prop->{'svm:mirror'}) {
@@ -91,13 +98,13 @@ sub init_state {
 		last;
 	    }
 	    elsif (_is_descendent ($self->{source_path}, $_)) {
-		die "Can't relay mirror outside mirror anchor $_";
+		$txn->abort, die "Can't relay mirror outside mirror anchor $_";
 	    }
 	}
 	if ($rroot) {
 	    $rroot =~ s|^/||;
 	    (undef, undef, $prop) = $ra->get_dir ($rroot, -1);
-	    die "relayed mirror source doesn't not have svm:source"
+	    $txn->abort, die "relayed mirror source doesn't not have svm:source"
 		unless exists $prop->{'svm:source'};
 	    @{$self}{qw/rsource rsource_root rsource_path/} =
 		@{$self}{qw/source source_root source_path/};
@@ -108,7 +115,7 @@ sub init_state {
 	    @{$self}{qw/source source_root source_path/} =
 		_parse_source ($self->{source}.$self->{source_path});
 
-	    die "relayed source and source have same repository uuid"
+	    $txn->abort, die "relayed source and source have same repository uuid"
 		if $self->{source_uuid} eq $self->{rsource_uuid};
 
 	    my $txnroot = $txn->root;
@@ -439,7 +446,8 @@ The structure of mod_lists:
         print "Skipped revision $rev.\n";
     } else {
         my @mod_list = keys %{$editor->{mod_lists}};
-        if ( grep { my $href = $editor->{mod_lists}{$_};
+        if ( ($self->{skip_to} && $self->{skip_to} <= $rev) ||
+	     grep { my $href = $editor->{mod_lists}{$_};
                     !( ( $href->{action} eq 'A'
                          && defined $href->{local_rev}
                          && $href->{local_rev} != -1
@@ -447,10 +455,12 @@ The structure of mod_lists:
                        || $href->{action} eq 'D' )
                 } @mod_list ) {
 	    my $pool = SVN::Pool->new_default_sub;
+
             my $start = $fromrev || ($self->{skip_to} ? $fromrev : $rev-1);
             my $reporter =
                 $ra->do_update ($rev, $editor->{target} || '', 1, $editor);
             $reporter->set_path ('', $start, 0);
+
             $reporter->finish_report ();
         } else {
             # Copies only.  Don't bother fetching full diff through network.
@@ -510,18 +520,42 @@ sub switch {
     # get a txn, change rsource and rsource_uuidto new url
 }
 
+sub get_latest_rev {
+    my ($self, $ra) = @_;
+    # don't care about real last-modified rev num unless in skip to mode.
+    return $ra->get_latest_revnum
+	unless $self->{skip_to};
+    my ($rev, $headrev);
+    my $offset = 2;
+
+    until (defined $rev) {
+	# svn 1.2+, get_log2 can do limit, regardless of the server version
+	if ($ra->can ('plugin_invoke_get_log2')) {
+	    $ra->get_log2 ([''], -1, 0, 1, 0, 1,
+			   sub { $rev = $_[1] });
+	}
+	else {
+	    $headrev = $ra->get_latest_revnum
+		unless defined $headrev;
+	    $ra->get_log ([''], -1, $headrev-$offset, 0, 1,
+			  sub { $rev = $_[1] unless defined $rev});
+	    $offset*=2;
+	}
+    }
+
+    die 'fatal: unable to find last-modified revision'
+	unless defined $rev;
+    return $rev;
+}
+
 sub run {
     my $self = shift;
     my $ra = $self->_new_ra;
-    my $latestrev = $ra->get_latest_revnum;
+    my $latestrev = $self->get_latest_rev ($ra);
     if ($self->{skip_to} && $self->{skip_to} =~ m/^HEAD(?:-(\d+))?/) {
-	# XXX: there is no way to get the last modified rev, which is required for
-	# skip_to to work alright.  Currently if we're skipping to HEAD, and
-	# the directory is not updated at HEAD, the sync will be empty.  This is totally
-	# annoying and stupid.
 	$self->{skip_to} = $latestrev - ($1 || 0);
     }
-    my $startrev = ($self->{skip_to} || 1)-1;
+    my $startrev = ($self->{skip_to} || 0);
     $startrev = $self->{fromrev}+1 if $self->{fromrev}+1 > $startrev;
     my $endrev = shift || -1;
     $endrev = $latestrev if $endrev == -1;
@@ -538,7 +572,8 @@ sub run {
 		  sub {
 		      my ($paths, $rev, $author, $date, $msg, $pool) = @_;
 		      # move the anchor detection stuff to &mirror ?
-		      if (defined $self->{skip_to} && $rev < $self->{skip_to}) {
+		      if (defined $self->{skip_to} && $rev <= $self->{skip_to}) {
+			  # XXX: get the logs for skipped changes
 			  $self->{rev_incomplete} = 1;
 			  $author = 'svm';
 			  $msg = sprintf('SVM: skipping changes %d-%d for %s',
@@ -554,7 +589,7 @@ sub run {
     };
 
     return unless $@;
-    if ($@ =~ m'no item') {
+    if ($@ =~ /no item/) {
 	print "Mirror source already removed.\n";
 	undef $@;
     }
@@ -658,7 +693,7 @@ sub change_dir_prop {
     return unless $baton;
     return if $_[0] =~ /^svm:/;
     return $self->SUPER::change_dir_prop ($baton, @_)
-	unless $_[0] =~ /^svn:(entry|wc):/;
+	unless $_[0] =~ /^svn:(?:entry|wc):/;
 }
 
 sub change_file_prop {
@@ -667,7 +702,7 @@ sub change_file_prop {
     # filter wc specified stuff
     return unless $_[0];
     return $self->SUPER::change_file_prop (@_)
-	unless $_[1] =~ /^svn:(entry|wc):/;
+	unless $_[1] =~ /^svn:(?:entry|wc):/;
 }
 
 # From source to target.  Given a path what svn lib gives, get a path
@@ -695,7 +730,7 @@ sub _remove_entries_in_path {
 
     foreach ( sort grep $self->{mod_lists}{$_}{action} eq 'D',
               keys %{$self->{mod_lists}} ) {
-        next unless m{^$path/([^/]+)$};
+        next unless m{^\Q$path\E/([^/]+)$};
         $self->delete_entry ($_, -1, $pb, $pool);
     }
 }
@@ -866,7 +901,7 @@ sub add_directory {
     my $is_copy = 0;
     my $action = $self->_in_modified_list ($path);
     if (defined $self->{mirror}{skip_to} &&
-        $self->{mirror}{skip_to} > $self->{mirror}{working}) {
+        $self->{mirror}{skip_to} >= $self->{mirror}{working}) {
         # no-op.
     } elsif ($self->_under_latest_copypath ($path)
             && $self->_is_under_false_copy ($path)) {
@@ -1016,7 +1051,7 @@ sub add_file {
     my $method = 'add_file';
     my $action = $self->_in_modified_list ($path);
     if ((defined $self->{mirror}{skip_to}
-         && $self->{mirror}{skip_to} > $self->{mirror}{working})
+         && $self->{mirror}{skip_to} >= $self->{mirror}{working})
         || ($self->_under_latest_copypath ($path)
             && $self->_is_under_false_copy ($path)) ) {
         # no-op. add_file().
