@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.53';
+$VERSION = '0.54';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -333,8 +333,7 @@ sub mirror {
     my ($self, $fromrev, $paths, $rev, $author, $date, $msg, $ppool) = @_;
     my $ra;
 
-    if ($debug) {
-	use BSD::Resource;
+    if ($debug and eval { require BSD::Resource; 1 }) {
 	my ($usertime, $systemtime,
 	    $maxrss, $ixrss, $idrss, $isrss, $minflt, $majflt, $nswap,
 	    $inblock, $oublock, $msgsnd, $msgrcv,

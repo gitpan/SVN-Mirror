@@ -1,3 +1,7 @@
+[Changes for 0.54 - Jan 10, 2005]
+
+* Don't requires BSD::Resources.
+
 [Changes for 0.53 - Jan 9, 2005]
 
 * Fix the case that a mirror anchor is intially created on remote
