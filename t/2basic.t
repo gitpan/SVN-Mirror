@@ -6,7 +6,7 @@ use File::Spec;
 use strict;
 
 plan skip_all => "can't find svnadmin"
-    unless -x '/usr/local/bin/svnadmin' || -x '/usr/bin/svnadmin';
+    unless `svnadmin --version` =~ /version/;
 
 plan tests => 15;
 my $repospath = "t/repos";
@@ -18,19 +18,22 @@ my $repos = SVN::Repos::create($repospath, undef, undef, undef,
 			       {'fs-type' => $ENV{SVNFSTYPE}})
     or die "failed to create repository at $repospath";
 
-my $abs_path = File::Spec->rel2abs( $repospath ) ;
-`svn mkdir -m 'init' file://$abs_path/source`;
+my $uri = File::Spec->rel2abs( $repospath ) ;
+$uri =~ s{^|\\}{/}g if ($^O eq 'MSWin32');
+$uri = "file://$uri";
+
+`svn mkdir -m 'init' $uri/source`;
 `svnadmin load --parent-dir source $repospath < t/test_repo.dump`;
 
 my $m = SVN::Mirror->new(target_path => '/fullcopy', repos => $repos,
-			 source => "file://$abs_path/source");
+			 source => "$uri/source");
 is (ref $m, 'SVN::Mirror::Ra');
 $m->init ();
 
 $m = SVN::Mirror->new (target_path => '/fullcopy', repos => $repos,
 		       get_source => 1,);
 
-is ($m->{source}, "file://$abs_path/source");
+is ($m->{source}, "$uri/source");
 $m->init ();
 $m->run ();
 
@@ -67,7 +70,7 @@ $m->delete;
 is_deeply (\@mirrored, [], 'discard mirror');
 
 $m = SVN::Mirror->new(target_path => '/partial', repos => $repos,
-		      source => "file://$abs_path/source/svnperl_002");
+		      source => "$uri/source/svnperl_002");
 $m->init ();
 $m->run ();
 

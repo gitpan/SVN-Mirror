@@ -1,3 +1,14 @@
+[Changes for 0.49 - Oct 17, 2004]
+
+* Copy-following-delete was not marked as is_copy properly. [Autrijus]
+
+* Win32API::GUID support on win32. [Autrijus]
+
+* Florian Weimer reported that repeated sync of an empty mirror
+  source will result in redundant local revisions.  Fix it by
+  always "touching" the add_directory() call, regardless of
+  whether anything was actually updated locally. [Autrijus]
+
 [Changes for 0.48 - Oct 4, 2004]
 
 * New: relocate. [Autrijus]

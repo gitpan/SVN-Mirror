@@ -14,6 +14,7 @@ requires(
         'SVN::Core'   => $required_svn,
         'URI::Escape' => '0',
         'Term::ReadKey' => '0',
+        'SVN::Simple::Edit' => '0',
 );
 features(
     'VCP support' => [

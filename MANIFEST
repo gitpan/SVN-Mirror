@@ -26,6 +26,8 @@ t/3vcp-cvs.t
 t/4vcp-p4.t
 t/5upgrade.t
 t/6relay.t
+t/7copy.t
+t/copy.dump
 t/test_old.dump
 t/test_repo.dump
 t/cvs-test-data/CVSROOT/README

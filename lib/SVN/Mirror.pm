@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.48';
+our $VERSION = '0.49';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -417,7 +417,7 @@ sub commit_txn {
     my ($self, $txn) = @_;
     my $rev;
 
-    if ($^O eq 'MSWin32' and -e "$self->{repospath}/db/current") {
+    if ($^O eq 'MSWin32' and ref($self) and -e "$self->{repospath}/db/current") {
         # XXX - On Win32+fsfs, ->commit works but raises exceptions
         eval { $txn->commit };
         $rev = $self->{fs}->youngest_rev;

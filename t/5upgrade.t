@@ -6,7 +6,7 @@ use File::Spec;
 use strict;
 
 plan skip_all => "can't find svnadmin"
-    unless -x '/usr/local/bin/svnadmin' || -x '/usr/bin/svnadmin';
+    unless `svnadmin --version` =~ /version/;
 
 plan tests => 3;
 my $repospath = "t/repos.old";
@@ -18,7 +18,6 @@ my $repos = SVN::Repos::create($repospath, undef, undef, undef,
 			       {'fs-type' => $ENV{SVNFSTYPE}})
     or die "failed to create repository at $repospath";
 
-my $abs_path = File::Spec->rel2abs( $repospath ) ;
 `svnadmin load --quiet $repospath < t/test_old.dump`;
 
 my $m = SVN::Mirror->new(target_path => '/trunk', repos => $repos, get_source => 1);

@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.48';
+$VERSION = '0.49';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -577,21 +577,22 @@ my $debug = 0;
 
 =begin NOTES
 
-1. The path passed to methods in MirrorEditor is a relative directory.
-   to $self->{anchor} (if exists) or $self->{mirror}{source_root}.
+1. The path passed to methods in MirrorEditor is a relative path
+   under $self->{anchor} (if exists) or $self->{mirror}{source_root}.
 
 2. MirrorEditor can fetch usable information in $self->{mod_lists} if
    exists.
 
 3. If we need to call other method in MirrorEditor, the path must be
-   in the style of note 1.
+   in the style of #1 above.
 
 4. The diff text passed through network is patch-like.  If a directory
-   is copied, there will be one delete_entry() call for the original
+   is copied, there needs to be one delete_entry() call for the original
    directory, then a LOT of add_directory() and add_file() calls for
    each one of directories and files underneath the new directory.
+
    This behavior is easy to handle for a real file system, but hard to
-   work correct for another subversion reporitory.  A lot of codes,
+   work correct for another subversion repository.  A lot of code below,
    especially in add_directory() and add_file(), are specialised for
    handling different conditions.
 
@@ -879,6 +880,7 @@ sub add_directory {
              && $self->_is_under_true_copy ($path)
              && !$action) {
         if ($self->_contains_mod_in_path ($path)) {
+            $is_copy = 1;
             splice @_, 0, 2, $self->{mirror}{headrev};
             $method = 'open_directory';
             $self->_enter_new_copied_path ();
@@ -948,6 +950,9 @@ sub add_directory {
     my $dir_baton;
     $method = "SUPER::$method";
     $dir_baton = $self->$method($tran_path, $pb, @_);
+
+    # Always 'touch' the directory, even for empty modifications.
+    $self->change_dir_prop ( $dir_baton, 'svm' => undef );
 
     $self->_remove_entries_in_path ($path, $dir_baton, $pool) if $is_copy;
 
