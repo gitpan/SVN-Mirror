@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.36';
+our $VERSION = '0.37';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -89,13 +89,16 @@ sub has_local {
     my $root = $fs->revision_root ($fs->youngest_rev);
     my $prop = $root->node_proplist ('/');
     my ($specanchor) =
-	map { substr ("svm:mirror:$spec/", 0, length($_)+1) eq "$_/" ? $_ : () }
-	    keys %$prop;
+	map { (substr ($_, -1, 1) eq '/' ?
+		  substr ("svm:mirror:$spec", 0, length ($_)) eq $_
+		: substr ("svm:mirror:$spec/", 0, length($_)+1) eq "$_/")
+		  ? $_ : () } keys %$prop;
     return unless $specanchor;
     my $path = $prop->{$specanchor};
     my $mpath = "svm:mirror:$spec";
     $mpath =~ s/^\Q$specanchor\E//;
     $path =~ s/^\Q$mpath\E//;
+    $mpath = "/$mpath" if $mpath && substr ($mpath, 0, 1) ne '/';
     my $m = SVN::Mirror->new (target_path => $path,
 			     repos => $repos,
 			     pool => SVN::Pool->new,

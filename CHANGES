@@ -1,3 +1,9 @@
+[Changes for 0.37 - Jun 30, 2004]
+
+* Fix a bug that has_local can't deal with mirroring remote '/'
+
+* Cleanup tmp files in make clean.
+
 [Changes for 0.36 - May 23, 2004]
 
 * Split VCP::Dest::svk to its own distribution.

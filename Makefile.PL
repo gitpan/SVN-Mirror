@@ -9,7 +9,7 @@ abstract	('Mirror remote repositories to local subversion repository');
 license		('perl');
 version_from	('lib/SVN/Mirror.pm');
 install_script	('bin/svm');
-
+clean_files	(qw't/repos tmp vcp*');
 requires(
         'SVN::Core'   => $required_svn,
         'URI::Escape' => '0',
