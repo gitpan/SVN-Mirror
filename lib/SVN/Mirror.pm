@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.41';
+our $VERSION = '0.42';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -335,9 +335,13 @@ sub upgrade {
 	while ($hist = $hist->prev (0)) {
 	    my (undef, $rev) = $hist->location;
 	    my $rrev = $fs->revision_prop ($rev, "svm:headrev:$source");
-	    die "no headrev" unless defined $rrev;
-	    $fs->change_rev_prop ($rev, "svm:headrev:$source", undef);
-	    $fs->change_rev_prop ($rev, "svm:headrev", "$uuid:$rrev\n");
+	    if (defined $rrev) {
+		$fs->change_rev_prop ($rev, "svm:headrev:$source", undef);
+		$fs->change_rev_prop ($rev, "svm:headrev", "$uuid:$rrev\n");
+	    }
+	    else {
+		die "no headrev" unless $source =~ m/^(?:cvs|p4)/;
+	    }
 	    $ipool->clear;
 	}
     }

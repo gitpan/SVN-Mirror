@@ -5,6 +5,9 @@ use File::Path;
 use File::Spec;
 use strict;
 
+plan skip_all => "relay doesn't work with svn < 1.1.0"
+    unless $SVN::Core::VERSION ge '1.1.0';
+
 plan skip_all => "can't find svnadmin"
     unless -x '/usr/local/bin/svnadmin' || -x '/usr/bin/svnadmin';
 

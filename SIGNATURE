@@ -14,9 +14,9 @@ not run its Makefile.PL or Build.PL.
 -----BEGIN PGP SIGNED MESSAGE-----
 Hash: SHA1
 
-SHA1 9ee4b722a1c2d39a40bcfc2ded5f90ceb9990ab2 CHANGES
+SHA1 46a35e5fa4255f36e5e43def18ded878adcce50a CHANGES
 SHA1 856e36ed22bc82d8c9e3dcca89e828d5cd278861 MANIFEST
-SHA1 82bc23251cc0664eba7ff57f658371c1fa7bab3d META.yml
+SHA1 0d0f736f33039020988b50fbd33b6d295a26d417 META.yml
 SHA1 4d514205eb12d65a19350cd4cb16eda127fa8b4e Makefile.PL
 SHA1 b39cfebf1c1d8e353e5c0a2628b94bd91d96ad66 README
 SHA1 76b454f5cd08b3d7e032640e071d4562ee58cf46 TODO
@@ -33,7 +33,7 @@ SHA1 ccf9b6267b5c9e7b35ef129f7e974255955c8867 inc/Module/Install/Metadata.pm
 SHA1 60d13a5654850bf449ebcab71a21558e6310826e inc/Module/Install/Scripts.pm
 SHA1 1288f4c4e4ba88e19194d7952eacbd6be2a5b916 inc/Module/Install/Win32.pm
 SHA1 1022a7ab797fc0081ea947f102650362ad925d7a inc/Module/Install/WriteAll.pm
-SHA1 8faa4f18d10864d849dbb5ed33c6902caee16a44 lib/SVN/Mirror.pm
+SHA1 ff1df790cedc2f7288dcad31de2ccdee308a602a lib/SVN/Mirror.pm
 SHA1 11df82bde9951a9af57ea7600e043f32451a7ffb lib/SVN/Mirror/Ra.pm
 SHA1 ef4e5ad5b1adaf45e62446e5048010b97f327ec0 lib/SVN/Mirror/VCP.pm
 SHA1 0e2288e4ba90514fdb4838d4326d5af191422982 t/1use.t
@@ -41,7 +41,7 @@ SHA1 d6ecc5a645eb3fe7f26f8f18b3fc47de0625c5a5 t/2basic.t
 SHA1 59d14a40070a7cdb407ec71aa1c70dd13ad65dd9 t/3vcp-cvs.t
 SHA1 735f0d6a2fc4307ab6d58afb59febbe122fe4497 t/4vcp-p4.t
 SHA1 a2a11cc08784ef986b7122abda84d6d76d2ed24b t/5upgrade.t
-SHA1 ae2434ae6ebee095471f3d5868ce094111470936 t/6relay.t
+SHA1 9de639cdddc3d19cd4516a6d021ef4c231ab934f t/6relay.t
 SHA1 ceac0d43bb5fcc858fb433856d0b05eae7bf9f35 t/cvs-test-data/CVSROOT/README
 SHA1 ebf8401475314cdb855e901e28cf13ca8bdbfe1f t/cvs-test-data/CVSROOT/val-tags
 SHA1 7bb8ca8923245ef572a5c2f1c355bb2b977d97a5 t/cvs-test-data/kuso/Attic/blah.pm,v
@@ -65,7 +65,7 @@ SHA1 5e3dfa993bb5089b418c5e8ffe79cacb93de099f t/test_repo.dump
 -----BEGIN PGP SIGNATURE-----
 Version: GnuPG v1.2.4 (FreeBSD)
 
-iD8DBQFBFK2fk1XldlEkA5YRAofEAJ0agB+7WgC0JwuKwKh91byPvjqGRACdFaOP
-V5hwEbl7AZHySCF9iLgNKVQ=
-=E6Ao
+iD4DBQFBF2A/k1XldlEkA5YRAiyRAJ0R3n10+gz1sdTZ32ISX0BSml5iGwCY+Byh
+FByObtkTbUbAcLzP7F9iyQ==
+=4U1+
 -----END PGP SIGNATURE-----
