@@ -163,7 +163,7 @@ sub get_wc_prop {
 }
 
 package SVN::Mirror;
-our $VERSION = '0.28';
+our $VERSION = '0.29';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -249,14 +249,17 @@ sub list_mirror {
 
 sub is_mirrored {
     my ($repos, $path) = @_;
+    my ($mpath) = map { $path =~ m/^$_/ ? $_ : () } list_mirror ($repos);
+    return unless $mpath;
+    $path =~ s/^$mpath//;
 
-    my $m = SVN::Mirror->new(target_path => $path,
+    my $m = SVN::Mirror->new(target_path => $mpath,
 			     repos => $repos,
 			     pool => SVN::Pool->new,
 			     get_source => 1) or die $@;
     eval { $m->init };
     return if $@;
-    return $m;
+    return wantarray ? ($m, $path) : $m;
 }
 
 sub find_local_rev {
@@ -473,9 +476,9 @@ sub mirror {
 }
 
 sub get_merge_back_editor {
-    my ($self, $msg, $committed) = @_;
+    my ($self, $path, $msg, $committed) = @_;
     # get ra commit editor for $self->{source}
-    my $ra = SVN::Ra->new(url => $self->{source},
+    my $ra = SVN::Ra->new(url => $path ? "$self->{source}/$path" : $self->{source},
 			  auth => $self->{auth},
 			  pool => $self->{pool},
 			  config => $self->{config},
@@ -495,7 +498,7 @@ sub mergeback {
     my $msg = $self->{fs}->revision_prop ($rev, 'svn:log');
     $msg .= "\n\nmerged from rev $rev of repository ".$self->{fs}->get_uuid;
 
-    my $editor = $self->get_merge_back_editor ($msg,
+    my $editor = $self->get_merge_back_editor ('', $msg,
 					       sub {warn "committed via RA"});
 
     # dir_delta ($path, $fromrev, $rev) for commit_editor

@@ -1,3 +1,8 @@
+[Changes for 0.29 - Mar 5, 2003]
+
+* Add path parameter fo get_merge_back_editor.
+* Let is_mirror take care of descendents in mirror path.
+
 [Changes for 0.28 - Feb 16, 2003]
 
 * Add list_mirror function.
