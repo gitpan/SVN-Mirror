@@ -1,6 +1,6 @@
 package SVN::Mirror::VCP;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.35';
+$VERSION = '0.43';
 use strict;
 BEGIN {
     $ENV{VCPLOGFILE} ||= '/dev/null';
@@ -64,6 +64,11 @@ sub map_filter_cvs {
     }
 }
 
+sub map_filter_cvsbk {
+    my $self = shift;
+    return $self->map_filter_cvs;
+}
+
 sub map_filter {
     my ($self, $scheme) = @_;
     my ($func, $filter) = ("map_filter_$scheme");
@@ -104,6 +109,12 @@ sub run {
     $_->init for @plugins;
     my $cp = VCP->new( @plugins );
     $cp->insert_required_sort_filter;
+
+    # XXX: special case that the plugin needs to be inserted after changeset
+    if ($self->{source_scheme} eq 'cvsbk') {
+	require VCP::Filter::cvsbkchangeset;
+	splice @{$cp->{PLUGINS}}, -1, 0, VCP::Filter::cvsbkchangeset->new;
+    }
     my $header = {} ;
     my $footer = {} ;
     $cp->copy_all( $header, $footer ) ;

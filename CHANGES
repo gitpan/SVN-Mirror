@@ -1,3 +1,13 @@
+[Changes for 0.43 - Aug 21, 2004]
+
+* Don't suggest vcp by default since it's not on CPAN these days.
+
+* Support VCP::Source::cvsbk.
+
+* skip_to now parsed for HEAD(-N)?.
+
+* Fix a bug for rev lookup when mirroring remote '/'.
+
 [Changes for 0.42 - Aug 9, 2004]
 
 * Don't die out when upgrading mirrors from vcp sources.

@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.35';
+$VERSION = '0.43';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -47,6 +47,19 @@ sub _is_descendent {
     return $parent eq substr ($child, 0, length ($parent));
 }
 
+sub _check_overlap {
+    my ($self) = @_;
+    my $fs = $self->{repos}->fs;
+    my $root = $fs->revision_root ($fs->youngest_rev);
+    for (map {$root->node_prop ($_, 'svm:source')} SVN::Mirror::list_mirror ($self->{repos})) {
+	my (undef, $source_root, $source_path) = _parse_source ($_);
+	next if $source_root ne $self->{source_root};
+	die "Mirroring overlapping paths not supported\n"
+	    if _is_descendent ($source_path, $self->{source_path})
+	    || _is_descendent ($self->{source_path}, $source_path);
+    }
+}
+
 sub init_state {
     my ($self, $txn) = @_;
     my $ra = $self->_new_ra (url => $self->{source});
@@ -60,6 +73,8 @@ sub init_state {
     $self->{source_root} = $source_root;
     $self->{source_path} = $path;
     $self->{fromrev} = 0;
+
+    $self->_check_overlap;
 
     # check if mirror source is already a mirror
     $ra = $self->_new_ra (url => $self->{source_root})
@@ -166,6 +181,8 @@ sub committed {
     $self->{fs}->change_rev_prop($rev, 'svn:date', $date);
     # sync remote headrev too
     $self->{fs}->change_rev_prop($rev, 'svm:headrev', $revmap."$self->{rsource_uuid}:$sourcerev\n");
+    $self->{fs}->change_rev_prop($rev, 'svm:incomplete', '*')
+	if $self->{rev_incomplete};
     $self->{headrev} = $rev;
 
     print "Committed revision $rev from revision $sourcerev.\n";
@@ -356,17 +373,27 @@ sub get_merge_back_editor {
 sub switch {
     my ($self, $url) = @_;
     my $ra = $self->_new_ra (url => $url);
+    # XXX: get proper uuid like init_state
     die "uuid is different" unless $ra->get_uuid eq $self->{source_uuid};
     warn "===> switching from $self->{source} to $url";
+    # get a txn, change rsource and rsource_uuidto new url
 }
 
 sub run {
     my $self = shift;
+    my $ra = $self->_new_ra;
+    my $latestrev = $ra->get_latest_revnum;
+    if ($self->{skip_to} && $self->{skip_to} =~ m/^HEAD(?:-(\d+))?/) {
+	# XXX: there is no way to get the last modified rev, which is required for
+	# skip_to to work alright.  Currently if we're skipping to HEAD, and
+	# the directory is not updated at HEAD, the sync will be empty.  This is totally
+	# annoying and stupid.
+	$self->{skip_to} = $latestrev - ($1 || 0);
+    }
     my $startrev = ($self->{skip_to} || 1)-1;
     $startrev = $self->{fromrev}+1 if $self->{fromrev}+1 > $startrev;
     my $endrev = shift || -1;
-    my $ra = $self->_new_ra;
-    $endrev = $ra->get_latest_revnum () if $endrev == -1;
+    $endrev = $latestrev if $endrev == -1;
 
     print "Syncing $self->{source}".($self->_relayed ? " via $self->{rsource}\n" : "\n");
 
@@ -380,9 +407,13 @@ sub run {
 		      my ($paths, $rev, $author, $date, $msg, $pool) = @_;
 		      # move the anchor detection stuff to &mirror ?
 		      if (defined $self->{skip_to} && $rev < $self->{skip_to}) {
+			  $self->{rev_incomplete} = 1;
 			  $author = 'svm';
 			  $msg = sprintf('SVM: skipping changes %d-%d for %s',
 					 $self->{fromrev}, $rev, $self->{rsource});
+		      }
+		      else {
+			  delete $self->{rev_incomplete};
 		      }
 		      $self->mirror($self->{fromrev}, $paths, $rev, $author,
 				    $date, $msg, $pool);

@@ -33,16 +33,8 @@ is ($m->{source}, "file://$abs_path/source");
 $m->init ();
 $m->run ();
 
-ok(1);
-
-$m = SVN::Mirror->new(target_path => '/partial', repos => $repos,
-		      source => "file://$abs_path/source/svnperl_002");
-$m->init ();
-$m->run ();
-
-ok(1);
 my @mirrored = SVN::Mirror::list_mirror ($repos);
-is_deeply ([sort @mirrored], ['/fullcopy', '/partial'],
+is_deeply ([sort @mirrored], ['/fullcopy'],
 	   'list mirror');
 is ((SVN::Mirror::is_mirrored ($repos, '/fullcopy'))[1], '',
     'is_mirrored anchor');
@@ -51,16 +43,10 @@ is ((SVN::Mirror::is_mirrored ($repos, '/fullcopy/svnperl_002'))[1], '/svnperl_0
 is_deeply ([SVN::Mirror::is_mirrored ($repos, '/nah')], [],
 	  'is_mirrored none');
 
-$m->delete;
-
-@mirrored = SVN::Mirror::list_mirror ($repos);
-is_deeply (\@mirrored, ['/fullcopy'], 'discard mirror');
-
 my $fs = $repos->fs;
 my $uuid = $fs->get_uuid;
 my $root = $fs->revision_root ($fs->youngest_rev);
-use YAML;
-#warn YAML::Dump ($root->node_proplist ('/'));
+
 is ((SVN::Mirror::has_local ($repos, "$uuid:/source/svnperl/t"))[1], '/svnperl/t',
     'has_local descendent');
 is ((SVN::Mirror::has_local ($repos, "$uuid:/source"))[1], '',
@@ -68,7 +54,24 @@ is ((SVN::Mirror::has_local ($repos, "$uuid:/source"))[1], '',
 is_deeply ([SVN::Mirror::has_local ($repos, "$uuid:/source-non")], [],
 	   'has_local none');
 
+
 $m = SVN::Mirror::has_local ($repos, "$uuid:/source");
 is ($m->find_local_rev (28), 58, 'find_local_rev');
 is (scalar $m->find_remote_rev (58), 28, 'find_remote_rev');
 is_deeply ({$m->find_remote_rev (58)}, {$m->{source_uuid} => 28}, 'find_remote_rev - hash');
+
+$m->delete;
+
+@mirrored = SVN::Mirror::list_mirror ($repos);
+is_deeply (\@mirrored, [], 'discard mirror');
+
+$m = SVN::Mirror->new(target_path => '/partial', repos => $repos,
+		      source => "file://$abs_path/source/svnperl_002");
+$m->init ();
+$m->run ();
+
+ok(1);
+@mirrored = SVN::Mirror::list_mirror ($repos);
+is_deeply ([sort @mirrored], ['/partial'],
+	   'list mirror');
+

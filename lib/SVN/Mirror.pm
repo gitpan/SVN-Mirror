@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.42';
+our $VERSION = '0.43';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -53,7 +53,7 @@ sub _schema_class {
     my ($url) = @_;
     die "no source specificed" unless $url;
     return 'SVN::Mirror::Ra' if $url =~ m/^(https?|file|svn(\+.*?)?):/;
-    return 'SVN::Mirror::VCP' if $has_vcp && $url =~ m/^(p4|cvs):/;
+    return 'SVN::Mirror::VCP' if $has_vcp && $url =~ m/^(p4|cvs)/;
 
     die "schema for $url not handled";
 }
@@ -101,10 +101,6 @@ sub new {
     return _schema_class ($self->{rsource} || $self->{source})->new (%$self);
 }
 
-sub source {
-
-}
-
 sub has_local {
     my ($repos, $spec) = @_;
     my $fs = $repos->fs;
@@ -112,6 +108,7 @@ sub has_local {
     my %mirrored = map {join(':', $root->node_prop ($_, 'svm:uuid'),
 			 $root->node_prop ($_, 'svm:source') =~ m/\!(.*)$/)
 		    => $_} list_mirror ($repos);
+    # XXX: gah!
     my ($specanchor) =
 	map { (substr ($_, -1, 1) eq '/' ?
 	       substr ($spec, 0, length ($_)) eq $_
@@ -121,13 +118,16 @@ sub has_local {
     my $path = $mirrored{$specanchor};
     $spec =~ s/^\Q$specanchor\E//;
     $path =~ s/^\Q$spec\E//;
-    $spec = "/$spec" if $spec && substr ($spec, 0, 1) ne '/';
     my $m = SVN::Mirror->new (target_path => $path,
 			     repos => $repos,
 			     pool => SVN::Pool->new,
 			     get_source => 1);
     eval { $m->init () };
     undef $@, return if $@;
+    if ($spec) {
+	$spec = "/$spec" if substr ($spec, 0, 1) ne '/';
+	$spec = '' if $spec eq '/';
+    }
     return wantarray ? ($m, $spec) : $m;
 }
 

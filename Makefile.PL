@@ -16,7 +16,7 @@ requires(
 );
 features(
     'VCP support' => [
-	-default => 1,
+	-default => 0,
         'VCP' => '0.9',
         'Data::UUID' => '0',
     ],
