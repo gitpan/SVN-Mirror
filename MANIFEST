@@ -5,4 +5,6 @@ CHANGES
 bin/svm
 Mirror.pm
 t/1use.t
+t/2basic.t
+t/test_repo.dump
 META.yml                                Module meta-data (added by MakeMaker)

@@ -1,15 +1,29 @@
-[Changes for 0.29 - Mar 5, 2003]
+[Changes for 0.30 - Mar 28, 2004 - YAPC::Taipei::2004 Release Party]
+
+* Fix a problem caused by the ra session doing log doens't load
+  config. Reported by: Stefan Metzmacher <metze at samba.org>
+
+* Support copy-following in the changes being mirrored. [Plasmaball]
+
+* has_local now checks remote descendents just like is_mirror.
+
+* Properly quote variables in regex. This fixes mirroring svn+ssh://.
+  [Plasmaball]
+
+* Support syncing specified remote rev_props.
+
+[Changes for 0.29 - Mar 5, 2004]
 
 * Add path parameter fo get_merge_back_editor.
 * Let is_mirror take care of descendents in mirror path.
 
-[Changes for 0.28 - Feb 16, 2003]
+[Changes for 0.28 - Feb 16, 2004]
 
 * Add list_mirror function.
 * Store mirror info as dir_prop in / also.
 * API for checking if a remote uuid:path has local mirror.
 
-[Changes for 0.27 - Jan 15, 2003]
+[Changes for 0.27 - Jan 15, 2004]
 
 * Support subversion 0.36.
 
