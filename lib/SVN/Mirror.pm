@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.55';
+our $VERSION = '0.56';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -51,9 +51,12 @@ sub _schema_class {
     my ($url) = @_;
     die "no source specificed" unless $url;
     return 'SVN::Mirror::Ra' if $url =~ m/^(https?|file|svn(\+.*?)?):/;
-    return 'SVN::Mirror::VCP' if $url =~ m/^(p4|cvs|arch)/ and eval {
-	require SVN::Mirror::VCP; 1
-    };
+    if ($url =~ m/^(p4|cvs|arch)/) {
+	eval {
+	    require SVN::Mirror::VCP; 1
+	} and return 'SVN::Mirror::VCP';
+	warn "VCP required.  Please install VCP and VCP::Dest::svk.\n";
+    }
 
     die "schema for $url not handled\n";
 }
@@ -170,11 +173,16 @@ my %CACHE;
 
 sub find_local_rev {
     my ($self, $rrev, $uuid) = @_;
-    return if $rrev > ($self->{working} || $self->{fromrev});
-    my $pool = SVN::Pool->new_default ($self->{pool});
 
-    my $fs = $self->{repos}->fs;
+    # if uuid is the repository we talk to directly, return
+    # null for revisions larger than what we have
     $uuid ||= $self->{source_uuid};
+    return if $uuid eq $self->{rsource_uuid} &&
+	$rrev > ($self->{working} || $self->{fromrev});
+
+    my $pool = SVN::Pool->new_default ($self->{pool});
+    my $fs = $self->{repos}->fs;
+
     # XXX: make better use of the cache
     my $cache = $CACHE{$fs->get_uuid}{$uuid} ||= {};
     return $cache->{$rrev} if exists $cache->{$rrev};
@@ -237,6 +245,7 @@ sub delete {
         $txnroot->change_node_prop ($self->{target_path}, 'svm:uuid', undef);
     }
     my $rev = $self->commit_txn($txn);
+    delete $CACHE{$fs->get_uuid}{$self->{source_uuid}};
     print "Committed revision $rev.\n";
 }
 

@@ -13,11 +13,11 @@ svm - command line interface for remote Subversion repository mirroring
     % setenv SVMREPOS ~/svm
 
     # set the path mirror/svn to mirror official subversion trunk
-    # ignore the changesets between revision 1 thru 6000
-    % svm init mirror/svn http://svn.collab.net/repos/svn/trunk 6000
+    % svm init mirror/svn http://svn.collab.net/repos/svn/trunk
 
     # run the actual mirroring
-    % svm sync mirror/svn
+    # flatten the changesets between revision 1 thru 6000
+    % svm sync mirror/svn 6000
 
     # merge back changes in local branch
     % svn cp file://$SVMREPOS/mirror/svn file://$SVMREPOS/svn-local
@@ -33,10 +33,9 @@ to a local repository.
 
 =over
 
-=item init B<path> B<url> B<[skip_to]>
+=item init B<path> B<url>
 
-Initialize the B<path> in svm repository to mirror from B<url>. The
-first revision to mirror from is B<skip_to>.
+Initialize the B<path> in svm repository to mirror from B<url>.
 
 =item sync B<path> B<[sync_to]>
 

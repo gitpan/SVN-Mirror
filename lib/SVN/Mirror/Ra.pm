@@ -560,14 +560,19 @@ sub get_latest_rev {
     until (defined $rev) {
 	# there were once get_log2, but it then was refactored by the svn_ra
 	# overhaul.  We have to check the version.
-	if ($SVN::Core::VERSION ge '1.2.0') {
+	# also, it's harmful to make use of the limited get_log for svn 1.2
+	# vs svnserve 1.1, it retrieves all logs and leave the connection
+	# in an inconsistent state.
+	if ($SVN::Core::VERSION ge '1.2.0' && $self->{rsource} !~ m/^svn/) {
 	    $ra->get_log ([''], -1, 0, 1, 0, 1,
 			   sub { $rev = $_[1] });
 	}
 	else {
 	    $headrev = $ra->get_latest_revnum
 		unless defined $headrev;
-	    $ra->get_log ([''], -1, $headrev-$offset, 0, 1,
+	    $ra->get_log ([''], -1, $headrev-$offset,
+			  ($SVN::Core::VERSION ge '1.2.0') ? (0) : (),
+			  0, 1,
 			  sub { $rev = $_[1] unless defined $rev});
 	    $offset*=2;
 	}

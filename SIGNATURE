@@ -16,11 +16,11 @@ Hash: SHA1
 
 SHA1 ff2b313e84dfe7500c8c517ba9cccedf0cf0cd2a CHANGES
 SHA1 07936d00e1c61716cd7db706f6c02b2ef25bab4e MANIFEST
-SHA1 0e5ca32358d03687f3d33f47f7d4b4978bed989f META.yml
+SHA1 0a16bf0e45810ad8e272e451e3d8034214c6c56a META.yml
 SHA1 adc7f8caeaeee11c7d081d2c80c3665ff5b510e4 Makefile.PL
 SHA1 b39cfebf1c1d8e353e5c0a2628b94bd91d96ad66 README
 SHA1 76b454f5cd08b3d7e032640e071d4562ee58cf46 TODO
-SHA1 9ce8fc0f489f288c53965dd21de243d5b36d4841 bin/svm
+SHA1 c483e9167721533601692a97dff2f50043e321c6 bin/svm
 SHA1 7338f67a9d2ef18cfa49a86cc1cdd9b8e1bf2ea4 inc/ExtUtils/AutoInstall.pm
 SHA1 06d883487127fa0026311904e7c4867e850c505c inc/Module/Install.pm
 SHA1 25c1920fccb1077b2e11ed0f18df50089d2beb5d inc/Module/Install/AutoInstall.pm
@@ -33,8 +33,8 @@ SHA1 6fca1d05c6b9a8f10865de5be4fefb9bfa7a52e9 inc/Module/Install/Metadata.pm
 SHA1 2e6f5004ac895a26c41f043bf8fa5efb4f5b21c4 inc/Module/Install/Scripts.pm
 SHA1 6b051a6d3ed824df40343a7ff09b66282e1783c3 inc/Module/Install/Win32.pm
 SHA1 77f82ce7c623e05304ac9aae05bcd1a5558fadbb inc/Module/Install/WriteAll.pm
-SHA1 e65035ce35ef81a73885e3a855a0c0dc71922ee8 lib/SVN/Mirror.pm
-SHA1 5d11a612d4cbead9aab6a14f31e1d992c8e20bf1 lib/SVN/Mirror/Ra.pm
+SHA1 6b20ca8f141165bcec21399602754d6e55c7512e lib/SVN/Mirror.pm
+SHA1 229764220e9a9e9006d058df392f76177dfc4285 lib/SVN/Mirror/Ra.pm
 SHA1 31fc19f899164b467869bd5ddd46ffc6d94d6873 lib/SVN/Mirror/VCP.pm
 SHA1 0e2288e4ba90514fdb4838d4326d5af191422982 t/1use.t
 SHA1 eabb122b5ef3f5c8aec17e5e40cf72356747b68d t/2basic.t
@@ -65,9 +65,9 @@ SHA1 03dcc4ebab3f6c864d588dd1301ec998eb337a39 t/cvs-test-data/kuso/staticfile,v
 SHA1 68545ba8db766551dce491f9c3f5e87f4b8a8d84 t/test_old.dump
 SHA1 5e3dfa993bb5089b418c5e8ffe79cacb93de099f t/test_repo.dump
 -----BEGIN PGP SIGNATURE-----
-Version: GnuPG v1.2.6 (FreeBSD)
+Version: GnuPG v1.4.0 (FreeBSD)
 
-iD8DBQFB/6RUk1XldlEkA5YRAip7AJsGZ6y8PxceINtrK6J2GKUCghV83QCeL9gG
-3UGQnGsUl1jhpfyR0nSd68U=
-=kfA1
+iD8DBQFCJKRHk1XldlEkA5YRAsLcAJ4zKDqSv0a4K4Zy86sPsgMLduuSgQCfUBjM
+zs7fSqg1OkI3pW3XjTejY+A=
+=fFt9
 -----END PGP SIGNATURE-----
