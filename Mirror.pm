@@ -162,7 +162,7 @@ sub get_wc_prop {
 }
 
 package SVN::Mirror;
-our $VERSION = '0.26';
+our $VERSION = '0.27';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -398,8 +398,10 @@ sub mirror {
     $ra->{callback}{mirror} = $self;
     $ra->{callback}{editor} = $editor;
 
+    $editor->{target} ||= '' if $SVN::Core::VERSION gt '0.36.0';
+
     my $reporter =
-	$ra->do_update ($rev, $editor->{target}, 1, $editor);
+	$ra->do_update ($rev, $editor->{target} || '', 1, $editor);
 
 =for comment TODO - discover copy history in log output
 
@@ -446,7 +448,8 @@ sub mergeback {
 					       sub {warn "committed via RA"});
 
     # dir_delta ($path, $fromrev, $rev) for commit_editor
-    SVN::Repos::dir_delta($self->{fs}->revision_root ($fromrev), $path, undef,
+    SVN::Repos::dir_delta($self->{fs}->revision_root ($fromrev), $path,
+			  $SVN::Core::VERSION ge '0.36.0' ? '' : undef,
 			  $self->{fs}->revision_root ($rev), $path,
 			  $editor, undef,
 			  1, 1, 0, 1
