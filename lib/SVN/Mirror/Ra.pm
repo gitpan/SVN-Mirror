@@ -85,6 +85,8 @@ sub _new_ra {
 
 sub committed {
     my ($self, $date, $sourcerev, $rev, undef, undef, $pool) = @_;
+    local $SIG{INT} = 'IGNORE';
+    local $SIG{TERM} = 'IGNORE';
     my $cpool = SVN::Pool->new_default ($pool);
     $self->{fs}->change_rev_prop($rev, 'svn:date', $date);
     $self->{fs}->change_rev_prop($rev, "svm:headrev:$self->{source}",
@@ -263,7 +265,7 @@ The structure of mod_lists:
 sub get_merge_back_editor {
     my ($self, $path, $msg, $committed) = @_;
     # get ra commit editor for $self->{source}
-    my $ra = $self->_new_ra ( url => $path ? "$self->{source}/$path" : $self->{source} );
+    my $ra = $self->_new_ra ( url => "$self->{source}$path" );
     my $youngest_rev = $ra->get_latest_revnum;
 
     return ($youngest_rev,

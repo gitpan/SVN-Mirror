@@ -1,5 +1,7 @@
 * support relayed mirror.
 
+* '/' is not a legal char in propname.
+
 VCP:
 * real branch creation and cleanups.
 * handle mixed revision branching better.

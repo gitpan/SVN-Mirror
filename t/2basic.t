@@ -1,12 +1,14 @@
 #!/usr/bin/perl
-use Test::More tests => 4;
+use Test::More;
 use SVN::Mirror;
 use File::Path;
 use File::Spec;
 use strict;
 
-exit 0 unless -x '/usr/local/bin/svnadmin' || -x '/usr/bin/svnadmin';
+plan skip_all => "can't find svnadmin"
+    unless -x '/usr/local/bin/svnadmin' || -x '/usr/bin/svnadmin';
 
+plan tests => 4;
 my $repospath = "t/repos";
 
 rmtree ([$repospath]) if -d $repospath;

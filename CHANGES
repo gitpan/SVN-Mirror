@@ -1,3 +1,9 @@
+[Changes for 0.38 - Jul 14, 2004]
+
+* Fix a bug that non-canonical path might enter svn api.
+
+* Ignore signals when mirror state is inconsistent.
+
 [Changes for 0.37 - Jun 30, 2004]
 
 * Fix a bug that has_local can't deal with mirroring remote '/'
