@@ -87,7 +87,7 @@ sub run {
     my $self = shift;
     my $dbdir = File::Spec->catdir ($self->{repospath}, 'vcp_state');
     my $source = $self->{vcp_source}->new
-	($self->{source}, ['--continue', '--db-dir', $dbdir, '--repo-id', 'cvs']);
+	($self->{source}, ['--continue', '--db-dir', $dbdir, '--repo-id', $self->{source_uuid}]);
 
     my $dest = VCP::Dest::svk->new ("svk:$self->{repospath}:$self->{target_path}",
 				    ['--db-dir', $dbdir, '--repo-id', 'svk',

@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.40';
+our $VERSION = '0.41';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -325,7 +325,6 @@ sub upgrade {
 
     $root->change_node_prop ('/', 'svm:mirror', join ('', map {"$_\n"} @mirrors));
 
-    my $latest_rrev;
     my $spool = SVN::Pool->new_default;
     for (@mirrors) {
 	print "Upgrading $_.\n";
@@ -339,7 +338,6 @@ sub upgrade {
 	    die "no headrev" unless defined $rrev;
 	    $fs->change_rev_prop ($rev, "svm:headrev:$source", undef);
 	    $fs->change_rev_prop ($rev, "svm:headrev", "$uuid:$rrev\n");
-	    $latest_rrev = $rrev unless defined $latest_rrev;
 	    $ipool->clear;
 	}
     }

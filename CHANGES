@@ -1,3 +1,9 @@
+[Changes for 0.41 - Aug 7, 2004]
+
+* Fix a bug mirroring over ra_dav. repos root doesn't like get_dir ('/').
+
+* Put source_uuid in VCP's source_repo_id so it's safe to switch.
+
 [Changes for 0.40 - Aug 4, 2004]
 
 * Change mirror state to avoid using '/' in property names that svn

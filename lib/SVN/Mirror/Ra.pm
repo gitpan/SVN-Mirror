@@ -66,7 +66,7 @@ sub init_state {
 	unless $self->{source} eq $self->{source_root};
 
     # older SVN::RA will return Reporter so prop would be undef
-    my (undef, undef, $prop) = $ra->get_dir ('/', -1);
+    my (undef, undef, $prop) = $ra->get_dir ('', -1);
     if ($prop && $prop->{'svm:mirror'}) {
 	my $rroot;
 	for ($prop->{'svm:mirror'} =~ m/^.*$/mg) {
@@ -79,13 +79,14 @@ sub init_state {
 	    }
 	}
 	if ($rroot) {
+	    $rroot =~ s|^/||;
 	    (undef, undef, $prop) = $ra->get_dir ($rroot, -1);
 	    die "relayed mirror source doesn't not have svm:source"
 		unless exists $prop->{'svm:source'};
 	    @{$self}{qw/rsource rsource_root rsource_path/} =
 		@{$self}{qw/source source_root source_path/};
 	    $self->{rsource_uuid} = $uuid;
-	    $self->{source_path} =~ s/^\Q$rroot\E//;
+	    $self->{source_path} =~ s|^/\Q$rroot\E||;
 	    @{$self}{qw/source source_uuid/} = @{$prop}{qw/svm:source svm:uuid/};
 	    $self->{source} .= '!' if index ($self->{source}, '!') == -1;
 	    @{$self}{qw/source source_root source_path/} =
