@@ -141,6 +141,7 @@ sub delete_entry {
 
 sub close_edit {
     my ($self) = @_;
+    return unless $self->{root};
     $self->SUPER::close_directory ($self->{root});
     $self->SUPER::close_edit (@_);
 }
@@ -162,7 +163,7 @@ sub get_wc_prop {
 }
 
 package SVN::Mirror;
-our $VERSION = '0.27';
+our $VERSION = '0.28';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -220,6 +221,32 @@ sub new {
     return $self;
 }
 
+sub has_local {
+    my ($repos, $spec) = @_;
+    my $fs = $repos->fs;
+    my $root = $fs->revision_root ($fs->youngest_rev);
+
+    my $path = $root->node_prop ('/', "svm:mirror:$spec");
+    return unless $path;
+
+    my $m = SVN::Mirror->new (target_path => $path,
+			     repos => $repos,
+			     pool => SVN::Pool->new,
+			     get_source => 1);
+    $m->init ();
+    return $m;
+}
+
+sub list_mirror {
+    my ($repos) = @_;
+    my $fs = $repos->fs;
+    my $root = $fs->revision_root ($fs->youngest_rev);
+
+    my $prop = $root->node_proplist ('/');
+
+    return map {$prop->{$_}} grep {m/^svm:mirror:/} keys %$prop;
+}
+
 sub is_mirrored {
     my ($repos, $path) = @_;
 
@@ -256,6 +283,8 @@ sub init {
     my $headrev = $self->{headrev} = $self->{fs}->youngest_rev;
     $self->{root} = $self->{fs}->revision_root ($headrev);
     $self->{target_path} =~ s{/+$}{}g;
+    $self->{target_path} = '/'.$self->{target_path}
+	unless substr ($self->{target_path}, 0, 1) eq '/';
 
     my $txn = $self->{fs}->begin_txn ($headrev);
     my $txnroot = $txn->root;
@@ -273,8 +302,11 @@ sub init {
 	    die "different source"
 		if !$self->{get_source} && $remote ne $self->{source};
 	    $self->{source} = $remote if $self->{get_source};
-	    $self->{source_root} = $root
-		if defined $path;
+
+	    if (defined $path) {
+		$self->{source_root} = $root;
+		$self->{source_path} = $path;
+	    }
 
 	    # check revprop of target_path's latest rev for headrev
 	    my $changed = $self->{root}->node_created_rev ($self->{target_path});
@@ -284,7 +316,22 @@ sub init {
 		unless exists $prop->{"svm:headrev:$self->{source}"};
 	    $self->{fromrev} = $prop->{"svm:headrev:$self->{source}"};
 	    $self->{VSN} = $prop->{"svm:vsnroot:$self->{source}"};
-	    $txn->abort ();
+	    # upgrade for 0.27
+	    my $uuid = $txnroot->node_prop ($self->{target_path}, 'svm:uuid');
+	    my $info = "svm:mirror:$uuid:".($self->{source_path} || '/');
+
+	    unless ($txnroot->node_prop ('/', $info)) {
+		$txnroot->change_node_prop ('/', $info, $self->{target_path});
+		my (undef, $rev) = $txn->commit ();
+		$self->{fs}->change_rev_prop ($rev, "svm:headrev:$self->{source}", $self->{fromrev});
+		$self->{fs}->change_rev_prop ($rev, "svn:author", 'svm');
+		$self->{fs}->change_rev_prop
+		    ($rev, "svn:log", "SVM: upgraded info for $self->{target_path}.");
+	    }
+	    else {
+		$txn->abort ();
+	    }
+
 	    return;
 	}
     }
@@ -308,6 +355,10 @@ sub init {
     my $path = $self->{source};
     die "source url not under source root"
 	if substr($path, 0, length($source_root), '') ne $source_root;
+
+    $self->{source_path} = $path;
+    $txnroot->change_node_prop ('/', "svm:mirror:$uuid:".($self->{source_path} || '/'),
+				$self->{target_path});
 
     $txnroot->change_node_prop ($self->{target_path}, 'svm:source',
 				join('!', $source_root, $path));
@@ -470,7 +521,7 @@ sub run {
 
     return unless $endrev == -1 || $startrev <= $endrev;
 
-    print "Retrieving log information for $startrev to $endrev\n";
+    print "Retrieving log information from $startrev to $endrev\n";
 
     $ra->get_log ([''], $startrev, $endrev, 0, 1,
 		  sub {

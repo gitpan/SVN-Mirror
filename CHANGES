@@ -1,3 +1,9 @@
+[Changes for 0.28 - Feb 16, 2003]
+
+* Add list_mirror function.
+* Store mirror info as dir_prop in / also.
+* API for checking if a remote uuid:path has local mirror.
+
 [Changes for 0.27 - Jan 15, 2003]
 
 * Support subversion 0.36.
