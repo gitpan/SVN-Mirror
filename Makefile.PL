@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-my $required_svn = '0.33.0';
+my $required_svn = '1.0.4';
 
 use inc::Module::Install;
 
@@ -18,7 +18,6 @@ features(
     'VCP support' => [
 	-default => 1,
         'VCP' => '0.9',
-        'SVK' => '0.14',
         'Data::UUID' => '0',
     ],
 );

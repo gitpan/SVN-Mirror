@@ -13,7 +13,6 @@ inc/Module/Install/WriteAll.pm
 lib/SVN/Mirror.pm
 lib/SVN/Mirror/Ra.pm
 lib/SVN/Mirror/VCP.pm
-lib/VCP/Dest/svk.pm
 bin/svm
 CHANGES
 Makefile.PL

@@ -5,11 +5,11 @@ use SVN::Mirror;
 use File::Path;
 use File::Spec;
 
-if( -d '/tmp/p4testroot' && eval "use VCP; 1" ) {
+if( -d '/tmp/p4testroot' && eval "use VCP::Dest::svk; 1" ) {
     plan tests => 3;
 }
 else {
-    plan skip_all => 'VCP not installed; p4 needs to be setup';
+    plan skip_all => 'VCP::Dest::svk not installed; p4 needs to be setup';
 }
 
 my $m;

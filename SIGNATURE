@@ -14,10 +14,10 @@ not run its Makefile.PL or Build.PL.
 -----BEGIN PGP SIGNED MESSAGE-----
 Hash: SHA1
 
-SHA1 7d07612176a9237882e18384b40f2e9e80b1c025 CHANGES
-SHA1 2ee0d9ee1eabb21fea9b800fa1f885e4db885601 MANIFEST
-SHA1 6606732567be70e8703bb4e4b7cc2da4e92fa5ad META.yml
-SHA1 759ec5900c7cac37a9d0306e2f93a6800dc61cd1 Makefile.PL
+SHA1 35e7eb83d1d84de33afb411459ece9f8915e34aa CHANGES
+SHA1 0d43536fd3ec7c6afa2b62b99324d47ad2c098ea MANIFEST
+SHA1 413c347c3d86fa1fe5e3a392cec061508f717e2b META.yml
+SHA1 cd8295991fc333412cae225c92c8fc6df6dc9d58 Makefile.PL
 SHA1 d27179ee97763fdc64b12ef6921c5f0d03b5cabd README
 SHA1 b3c65a8b64c8504af3121a96954b0ee171990941 TODO
 SHA1 9ce8fc0f489f288c53965dd21de243d5b36d4841 bin/svm
@@ -33,14 +33,13 @@ SHA1 e5ab6153407ff571eefbb366d8cf18671c0974e4 inc/Module/Install/Metadata.pm
 SHA1 04d629dd71239bb9c4d79415fd7c932ce5be1bf6 inc/Module/Install/Scripts.pm
 SHA1 1915204e46fcee6faf528f8d86aec215e332cc7b inc/Module/Install/Win32.pm
 SHA1 0c911bbda0f5e2cd401249412231a3be3548fe20 inc/Module/Install/WriteAll.pm
-SHA1 248989df8dfc489a861645892360694769926c30 lib/SVN/Mirror.pm
+SHA1 c78754ffb9b87e18216c43051e98bbd0b55433c6 lib/SVN/Mirror.pm
 SHA1 630c527beaf1d9a268fe4cdca65c716cd0b8cee6 lib/SVN/Mirror/Ra.pm
 SHA1 33b1526794bf4df1bcedc95334a01ff46db13d3c lib/SVN/Mirror/VCP.pm
-SHA1 2e08efd0d0bdd8ed4003dd9ed1682c1aef0fe0fb lib/VCP/Dest/svk.pm
 SHA1 0e2288e4ba90514fdb4838d4326d5af191422982 t/1use.t
 SHA1 c9a95b20f151769333266b85a73c9fe349abdfc8 t/2basic.t
-SHA1 3200c16635cb00c3aa34fafad10ffe6b7fccf992 t/3vcp-cvs.t
-SHA1 5b9ef09a5e9a3cee67ec36beff2d8d615c4f06fd t/4vcp-p4.t
+SHA1 59d14a40070a7cdb407ec71aa1c70dd13ad65dd9 t/3vcp-cvs.t
+SHA1 735f0d6a2fc4307ab6d58afb59febbe122fe4497 t/4vcp-p4.t
 SHA1 ceac0d43bb5fcc858fb433856d0b05eae7bf9f35 t/cvs-test-data/CVSROOT/README
 SHA1 ebf8401475314cdb855e901e28cf13ca8bdbfe1f t/cvs-test-data/CVSROOT/val-tags
 SHA1 7bb8ca8923245ef572a5c2f1c355bb2b977d97a5 t/cvs-test-data/kuso/Attic/blah.pm,v
@@ -63,7 +62,7 @@ SHA1 5e3dfa993bb5089b418c5e8ffe79cacb93de099f t/test_repo.dump
 -----BEGIN PGP SIGNATURE-----
 Version: GnuPG v1.2.4 (FreeBSD)
 
-iD8DBQFAjT3Ck1XldlEkA5YRAoVaAJ9gnq0CERhfiomwJKTiEip/l1om6wCbB6tt
-p/ktTQH4c36Iw8m4Ayx62UA=
-=WM5C
+iD8DBQFAr+2Vk1XldlEkA5YRArwEAJ4wiXM8StseiWLo46jU2FAXAkOy7gCeK08n
+/dMB0uYzJT5vi16hEwXntu4=
+=m+Aw
 -----END PGP SIGNATURE-----

@@ -1,3 +1,7 @@
+[Changes for 0.36 - May 23, 2004]
+
+* Split VCP::Dest::svk to its own distribution.
+
 [Changes for 0.35 - Apr 26, 2004]
 
 * Fix a bug triggered by remote rename. [Plasmaball]
