@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.45';
+our $VERSION = '0.46';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -241,7 +241,7 @@ sub init {
     my $pool = SVN::Pool->new_default ($self->{pool});
     my $headrev = $self->{headrev} = $self->{fs}->youngest_rev;
     $self->{root} = $self->{fs}->revision_root ($headrev);
-    my $new = ($self->{root}->check_path ($self->{target_path}) == $SVN::Node::none);
+    my $new = ($self->{target_path} eq '/' and not $self->{fs}->revision_root($headrev)->node_prop('/', 'svm:source')) || ($self->{root}->check_path ($self->{target_path}) == $SVN::Node::none);
     $self->pre_init ($new);
 
     if ($new) {
@@ -255,7 +255,13 @@ sub init {
 	$txnroot->change_node_prop ($self->{target_path}, 'svm:source', $source);
 	$txnroot->change_node_prop ($self->{target_path}, 'svm:uuid', $self->{source_uuid});
 
-	my (undef, $rev) = $txn->commit ();
+	my (undef, $rev) = eval { $txn->commit () };
+
+        if ($^O eq 'MSWin32' and -e "$self->{repospath}/db/current") {
+            # XXX - On Win32+fsfs, ->commit works but raises exceptions
+            $rev = $self->{fs}->youngest_rev;
+        }
+
 	print "Committed revision $rev.\n";
 
 	$self->{fs}->change_rev_prop ($rev, "svn:author", 'svm');
