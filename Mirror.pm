@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 use SVN::Core;
 package MirrorEditor;
-$VERSION = '0.20';
 @ISA = ('SVN::Delta::Editor');
 use strict;
 
@@ -19,7 +18,6 @@ sub set_target_revision {
 
 sub open_root {
     my ($self, $remoterev, $pool) =@_;
-    warn "opening root $self->{mirror}{headrev} ($remoterev)";
     $self->{root} = $self->SUPER::open_root($self->{mirror}{headrev}, $pool);
 }
 
@@ -109,7 +107,7 @@ sub apply_textdelta {
 sub close_directory {
     my $self = shift;
     my $baton = shift;
-    return unless $baton && $baton ne $self->{root};
+    return unless $baton;
     $self->{mirror}{VSN} = $self->{NEWVSN}
 	if $baton == $self->{root} && $self->{NEWVSN};
     $self->SUPER::close_directory ($baton);
@@ -136,8 +134,7 @@ sub add_file {
 
 sub delete_entry {
     my ($self, $path, $rev, $pb, $pool) = @_;
-    return unless $pb && $pb ne $self->{root};
-    warn "delete $path";
+    return unless $pb;
     $self->SUPER::delete_entry ($path, $rev, $pb, $pool);
 }
 
@@ -164,7 +161,7 @@ sub get_wc_prop {
 }
 
 package SVN::Mirror;
-
+our $VERSION = '0.21';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -260,7 +257,7 @@ sub init {
 
     my (undef, $rev) = SVN::Fs::commit_txn($txn);
 
-    warn "committed revision $rev";
+    print "Committed revision $rev.\n";
 
     $self->{fromrev} = 0;
     $self->{fs}->change_rev_prop ($rev, "svm:headrev:$self->{source}", 0);
@@ -302,7 +299,7 @@ sub committed {
 				 "$self->{VSN}") if $self->{VSN};
     $self->{headrev} = $rev;
 
-    warn "committed $rev $date";
+    print "Committed revision $rev from revision $sourcerev.\n";
 }
 
 sub mirror {
@@ -317,7 +314,8 @@ sub mirror {
     $editor->{mirror} = $self;
 
     $ra = $self->{cached_ra}
-	if $self->{cached_ra_url} eq $self->{source};
+	if exists $self->{cached_ra_url} &&
+	    $self->{cached_ra_url} eq $self->{source};
 
     $ra ||= SVN::Ra->new(url => $self->{source},
 			 auth => $self->{auth},
@@ -339,7 +337,7 @@ sub mirror {
 
 	    @{$self}{qw/cached_ra cached_ra_url/} = ($ra, $editor->{anchor});
 
-	    warn "new anchor is $editor->{anchor}, new target is $editor->{target}";
+#	    warn "new anchor is $editor->{anchor}, new target is $editor->{target}";
 	    $editor->{actual_target} = $editor->{actual_target} ?
 		"$editor->{target}/$editor->{actual_target}" : $editor->{target};
 	}
@@ -365,17 +363,13 @@ sub mirror {
 
 #    my $start = $self->{skip_to} ? $fromrev : $rev-1;
     my $start = $fromrev || ($self->{skip_to} ? $fromrev : $rev-1);
-    warn "$fromrev - $rev ($start)";
     $editor->{target} ||= '';
     $reporter->set_path ('', $start, 0);
     $reporter->finish_report ();
 }
 
-sub mergeback {
-    my ($self, $fromrev, $path, $rev) = @_;
-
-    # verify $path is copied from $self->{target_path}
-
+sub get_merge_back_editor {
+    my ($self, $msg, $committed) = @_;
     # get ra commit editor for $self->{source}
     my $ra = SVN::Ra->new(url => $self->{source},
 			  auth => $self->{auth},
@@ -383,16 +377,23 @@ sub mergeback {
 			  config => $self->{config},
 			  callback => 'MyCallbacks');
 
+    return SVN::Delta::Editor->new ($ra->get_commit_editor ($msg, $committed));
+}
+
+sub mergeback {
+    my ($self, $fromrev, $path, $rev) = @_;
+
+    # verify $path is copied from $self->{target_path}
+
     # concat batch merge?
     my $msg = $self->{fs}->revision_prop ($rev, 'svn:log');
     $msg .= "\n\nmerged from rev $rev of repository ".
 	SVN::Fs::get_uuid($self->{fs});
 
-    my $editor = SVN::Delta::Editor->
-	new ($ra->get_commit_editor ($msg,
-				     sub {warn "committed via RA"}));
-    # dir_delta ($path, $fromrev, $rev) for commit_editor
+    my $editor = $self->get_merge_back_editor ($msg,
+					       sub {warn "committed via RA"});
 
+    # dir_delta ($path, $fromrev, $rev) for commit_editor
     SVN::Repos::dir_delta($self->{fs}->revision_root ($fromrev), $path, undef,
 			  $self->{fs}->revision_root ($rev), $path,
 			  $editor,
@@ -404,18 +405,18 @@ sub run {
     my $self = shift;
     my $startrev = ($self->{skip_to} || 1)-1;
     $startrev = $self->{fromrev}+1 if $self->{fromrev}+1 > $startrev;
-    my $endrev = shift || -1; #$startrev+1;
+    my $endrev = shift || -1;
 
     my $ra = SVN::Ra->new(url => $self->{source}, pool => $self->{pool},
  			  auth => $self->{auth});
 
     $endrev = $ra->get_latest_revnum () if $endrev == -1;
 
-    warn "running on $self->{source}";
+    print "Syncing $self->{source}\n";
 
     return unless $endrev == -1 || $startrev <= $endrev;
 
-    warn "log: $startrev($self->{fromrev}), $endrev";
+    print "Retrieving log information for $startrev to $endrev\n";
 
     $ra->get_log ([''], $startrev, $endrev, 0, 1,
 		  sub {
@@ -424,7 +425,7 @@ sub run {
 		      if (defined $self->{skip_to} && $rev < $self->{skip_to}) {
 			  $author = 'svm';
 			  $msg = sprintf('SVM: skipping changes %d-%d for %s',
-					 $self->{fromrev}, $rev);
+					 $self->{fromrev}, $rev, $self->{source});
 		      }
 		      $self->mirror($self->{fromrev}, $paths, $rev, $author,
 				    $date, $msg, $pool);
