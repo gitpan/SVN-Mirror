@@ -49,6 +49,7 @@ sub change_dir_prop {
     my $baton = shift;
     # filter wc specified stuff
     return unless $baton;
+    return if $_[0] =~ /^svm:/;
     return $self->SUPER::change_dir_prop ($baton, @_)
 	unless $_[0] =~ /^svn:(entry|wc):/;
     $self->{NEWVSN} = $_[1]
@@ -161,7 +162,7 @@ sub get_wc_prop {
 }
 
 package SVN::Mirror;
-our $VERSION = '0.25';
+our $VERSION = '0.26';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -254,6 +255,7 @@ sub init {
     my $pool = SVN::Pool->new_default ($self->{pool});
     my $headrev = $self->{headrev} = $self->{fs}->youngest_rev;
     $self->{root} = $self->{fs}->revision_root ($headrev);
+    $self->{target_path} =~ s{/+$}{}g;
 
     my $txn = $self->{fs}->begin_txn ($headrev);
     my $txnroot = $txn->root;
@@ -290,6 +292,7 @@ sub init {
     die "svm not configured on $self->{target_path}"
 	if $self->{get_source};
 
+    $self->{source} =~ s{/+$}{}g;
     my $ra = SVN::Ra->new(url => $self->{source},
 			  auth => $self->{auth},
 			  pool => $self->{pool},
@@ -302,11 +305,12 @@ sub init {
     $txnroot->change_node_prop ($self->{target_path},
 				'svm:uuid', "$uuid");
 
-    my $url = $self->{source};
-    $url =~ s/^$source_root//;
+    my $path = $self->{source};
+    die "source url not under source root"
+	if substr($path, 0, length($source_root), '') ne $source_root;
 
     $txnroot->change_node_prop ($self->{target_path}, 'svm:source',
-				join('!', $source_root, $url));
+				join('!', $source_root, $path));
 
     my (undef, $rev) = $txn->commit ();
 

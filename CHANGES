@@ -1,3 +1,10 @@
+[Changes for 0.26 - Dec 27, 2003]
+
+* Fix a bug mirroring svn+ssh URL
+* Make paths canonical before entering the svn libraries.
+* Skip svm: properties when mirroring.
+  This allows branched mirrored paths to be mirrored and branched again.
+
 [Changes for 0.25 - Nov 13, 2003]
 
 * Allow init with repository object.
