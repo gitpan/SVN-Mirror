@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.54';
+$VERSION = '0.55';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -422,6 +422,7 @@ The structure of mod_lists:
             $local_path = "$self->{target_path}/$svn_lpath";
         }
 
+	# XXX: the logic of the code here is a mess!
         my ($action, $rpath, $rrev, $lrev) =
             @$href{qw/action remote_path remote_rev local_rev local_path/} =
                 ( $item->action,
@@ -431,11 +432,12 @@ The structure of mod_lists:
                     -1 : $self->find_local_rev ($item->copyfrom_rev, $self->{rsource_uuid}) || undef,
                   $local_path,
                 );
-	# XXX: workaround fsfs remoet_path inconsistencies
+	# workaround fsfs remoet_path inconsistencies
 	$rpath = "/$rpath" if $rpath && substr ($rpath, 0, 1) ne '/';
         my ($src_lpath, $source_node_kind) = (undef, $SVN::Node::unknown);
+	# XXX: should check if the copy is within the anchor before resolving lrev
         if ( defined $lrev && $lrev != -1 ) {
-            $src_lpath = $rpath;
+	    $src_lpath = $rpath;
 	    # copy within mirror anchor
             if ($src_lpath =~ s|^\Q$self->{rsource_path}\E|$self->{target_path}|) {
 		# $source_node_kind is used for deciding if we need reporter later
@@ -445,9 +447,10 @@ The structure of mod_lists:
 	    else {
                 # The source is not in local depot.  Invalidate this
                 # copy.
-                $href->{local_rev} = undef;
-                $src_lpath = undef;
-		# XXX: generate a callback for out-of-bound copies.
+		($src_lpath, $href->{local_rev}) =
+		    $self->{cb_copy_notify}
+		    ? $self->{cb_copy_notify}->($self, $local_path, $rpath, $rrev)
+		    : (undef, undef)
             }
         }
         @$href{qw/local_source_path source_node_kind/} =
@@ -534,7 +537,7 @@ sub get_merge_back_editor {
 
     $self->{commit_ra} = $self->{cached_ra};
     return ($self->{fromrev}, SVN::Delta::Editor->new
-	    ($self->{cached_ra}->get_commit_editor ($msg, $committed, $self->{pool})));
+	    ($self->{cached_ra}->get_commit_editor ($msg, $committed)));
 }
 
 sub switch {
@@ -555,9 +558,10 @@ sub get_latest_rev {
     my $offset = 2;
 
     until (defined $rev) {
-	# svn 1.2+, get_log2 can do limit, regardless of the server version
-	if ($ra->can ('plugin_invoke_get_log2')) {
-	    $ra->get_log2 ([''], -1, 0, 1, 0, 1,
+	# there were once get_log2, but it then was refactored by the svn_ra
+	# overhaul.  We have to check the version.
+	if ($SVN::Core::VERSION ge '1.2.0') {
+	    $ra->get_log ([''], -1, 0, 1, 0, 1,
 			   sub { $rev = $_[1] });
 	}
 	else {
@@ -594,7 +598,9 @@ sub run {
 
     $self->{headrev} = $self->{fs}->youngest_rev;
     eval {
-    $ra->get_log ([''], $startrev, $endrev, 1, 1,
+    $ra->get_log ([''], $startrev, $endrev,
+		  ($SVN::Core::VERSION ge '1.2.0') ? (0) : (),
+		  1, 1,
 		  sub {
 		      my ($paths, $rev, $author, $date, $msg, $pool) = @_;
 		      # move the anchor detection stuff to &mirror ?
@@ -613,6 +619,9 @@ sub run {
 		      $self->{fromrev} = $rev;
 		  });
     };
+
+    delete $self->{cached_ra};
+    delete $self->{cached_ra_url};
 
     return unless $@;
     if ($@ =~ /no item/) {

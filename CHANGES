@@ -1,3 +1,13 @@
+[Changes for 0.55 - Feb 1, 2005]
+
+* Partially support remote copies that cross local mirror anchors
+  with cb_copy_notify callback.
+
+* Fix a pool issue that session of ra->get_commit_editor is not
+  recycle due to ref holding in the wrong pool.
+
+* Cope with latest svn-trunk ra api changes.
+
 [Changes for 0.54 - Jan 10, 2005]
 
 * Don't requires BSD::Resources.
