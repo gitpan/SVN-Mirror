@@ -1,0 +1,11 @@
+# http://module-build.sourceforge.net/META-spec.html
+#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
+name:         SVN-Mirror
+version:      0.1
+version_from: Mirror.pm
+installdirs:  site
+requires:
+    SVN::Core:                     0.28
+
+distribution_type: module
+generated_by: ExtUtils::MakeMaker version 6.16
