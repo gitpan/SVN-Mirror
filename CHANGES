@@ -1,3 +1,10 @@
+[Changes for 0.52 - Dec 29, 2004]
+
+* Workaround ra_dav memory leaks.
+
+* Fix an annoying bug that prevents most of the cases mirroring a
+  branch only.
+
 [Changes for 0.51 - Dec 20, 2004]
 
 * Get the real last-modified revision.  This fixes skip-to mirroring.

@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.51';
+$VERSION = '0.52';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -83,9 +83,10 @@ sub init_state {
 	$txn->abort;
 	die "$self->{source} is not a directory.\n";
     }
-
-    $ra = $self->_new_ra (url => $self->{source_root})
-	unless $self->{source} eq $self->{source_root};
+    unless ($self->{source} eq $self->{source_root}) {
+	undef $ra; # bizzare perlgc
+	$ra = $self->_new_ra (url => $self->{source_root});
+    }
 
     # check if mirror source is already a mirror
     # older SVN::RA will return Reporter so prop would be undef
@@ -326,9 +327,21 @@ sub committed {
     print "Committed revision $rev from revision $sourcerev.\n";
 }
 
+our $debug;
+
 sub mirror {
     my ($self, $fromrev, $paths, $rev, $author, $date, $msg, $ppool) = @_;
     my $ra;
+
+    if ($debug) {
+	use BSD::Resource;
+	my ($usertime, $systemtime,
+	    $maxrss, $ixrss, $idrss, $isrss, $minflt, $majflt, $nswap,
+	    $inblock, $oublock, $msgsnd, $msgrcv,
+	    $nsignals, $nvcsw, $nivcsw) = BSD::Resource::getrusage();
+	print ">>> mirroring $rev:\n";
+	print ">>> $usertime $systemtime $maxrss $ixrss $idrss $isrss\n";
+    }
 
     my $pool = SVN::Pool->new_default ($ppool);
     my ($newrev, $revmap);
@@ -336,6 +349,9 @@ sub mirror {
     $ra = $self->{cached_ra}
 	if exists $self->{cached_ra_url} &&
 	    $self->{cached_ra_url} eq $self->{rsource};
+    if ($ra && $self->{rsource} =~ m/^http/ && --$self->{cached_life} == 0) {
+	undef $ra;
+    }
     $ra ||= $self->_new_ra;
 
     $revmap = $self->_revmap ($rev, $ra) if $self->_relayed;
@@ -358,10 +374,11 @@ sub mirror {
 	(undef, $editor->{anchor}, $editor->{target})
 	    = File::Spec::Unix->splitpath($editor->{anchor} || $self->{rsource});
 	chop $editor->{anchor};
-	$ra = $self->_new_ra ( url => $editor->{anchor}, pool => SVN::Pool->new );
+	$ra = $self->_new_ra ( url => $editor->{anchor} );
+	undef $self->{cached_ra}; # bizzare perlgc
 	@{$self}{qw/cached_ra cached_ra_url/} = ($ra, $editor->{anchor});
     }
-
+    $self->{cached_life} ||= 100;
     $editor->{target} ||= '' if $SVN::Core::VERSION gt '0.36.0';
 
 =begin NOTES
@@ -422,14 +439,16 @@ The structure of mod_lists:
         if ( defined $lrev && $lrev != -1 ) {
             my $rev_root = $self->{fs}->revision_root ($lrev);
             $src_lpath = $rpath;
-            $src_lpath =~ s|^\Q$self->{rsource_path}\E|$self->{target_path}|;
-            $source_node_kind = $rev_root->check_path ($src_lpath);
-
-            if ( $source_node_kind == $SVN::Node::none ) {
+	    # copy within mirror anchor
+            if ($src_lpath =~ s|^\Q$self->{rsource_path}\E|$self->{target_path}|) {
+		# XXX: The old code checks if src_lpath exists.  Do we need that?
+	    }
+	    else {
                 # The source is not in local depot.  Invalidate this
                 # copy.
                 $href->{local_rev} = undef;
                 $src_lpath = undef;
+		# XXX: generate a callback for out-of-bound copies.
             }
         }
         @$href{qw/local_source_path source_node_kind/} =
@@ -604,7 +623,7 @@ sub DESTROY {
 package SVN::Mirror::Ra::MirrorEditor;
 our @ISA = ('SVN::Delta::Editor');
 use strict;
-my $debug = 0;
+our $debug = 0;
 
 =begin NOTES
 
@@ -1112,21 +1131,21 @@ sub delete_entry {
 }
 
 sub close_edit {
-    my $self = shift;
+    my ($self, $pool) = @_;
     print "MirrorEditor::close_edit()\n" if $debug;
 
     unless ($self->{root}) {
         # If we goes here, this must be an empty revision.  We must
         # replicate an empty revision as well.
-        $self->open_root ($self->{mirror}{headrev});
+        $self->open_root ($self->{mirror}{headrev}, $pool);
+	$self->SUPER::close_directory ($self->{root}, $pool);
     }
-
-    $self->SUPER::close_directory ($self->{root});
+    delete $self->{root};
     local $SIG{INT} = 'IGNORE';
     local $SIG{TERM} = 'IGNORE';
 
     # XXX - On Win32+fsfs, ->close_edit works but raises exceptions
-    local $@; eval { $self->SUPER::close_edit (@_) };
+    local $@; eval { $self->SUPER::close_edit ($pool) };
 }
 
 1;
