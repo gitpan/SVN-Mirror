@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.45';
+$VERSION = '0.47';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -155,9 +155,8 @@ sub load_state {
 sub _new_ra {
     my ($self, %arg) = @_;
     $self->{config} ||= SVN::Core::config_get_config (undef, $self->{pool});
-    $self->{auth} ||= $self->_new_auth;
     SVN::Ra->new( url => $self->{rsource},
-		  auth => $self->{auth},
+		  auth => $self->_new_auth,
 		  pool => SVN::Pool->new,
 		  config => $self->{config},
 		  %arg);

@@ -1,6 +1,6 @@
 package SVN::Mirror::VCP;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.45';
+$VERSION = '0.47';
 use strict;
 use File::Spec;
 

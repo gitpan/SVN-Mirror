@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.46';
+our $VERSION = '0.47';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -220,7 +220,7 @@ sub find_remote_rev {
 }
 
 sub delete {
-    my $self = shift;
+    my ($self, $remove_props) = @_;
     my $fs = $self->{repos}->fs;
     my $newprop = join ('', map {"$_\n"} grep { $_ ne $self->{target_path}}
 			list_mirror ($self->{repos}));
@@ -229,7 +229,11 @@ sub delete {
     $txn->change_prop ("svn:author", 'svm');
     $txn->change_prop ("svn:log", "SVM: discard mirror for $self->{target_path}");
     $txnroot->change_node_prop ('/', 'svm:mirror', $newprop);
-    my (undef, $rev) = $txn->commit ();
+    if ($remove_props) {
+        $txnroot->change_node_prop ($self->{target_path}, 'svm:source', undef);
+        $txnroot->change_node_prop ($self->{target_path}, 'svm:uuid', undef);
+    }
+    my $rev = $self->commit_txn($txn);
     print "Committed revision $rev.\n";
 }
 
@@ -255,21 +259,17 @@ sub init {
 	$txnroot->change_node_prop ($self->{target_path}, 'svm:source', $source);
 	$txnroot->change_node_prop ($self->{target_path}, 'svm:uuid', $self->{source_uuid});
 
-	my (undef, $rev) = eval { $txn->commit () };
-
-        if ($^O eq 'MSWin32' and -e "$self->{repospath}/db/current") {
-            # XXX - On Win32+fsfs, ->commit works but raises exceptions
-            $rev = $self->{fs}->youngest_rev;
-        }
-
+	my $rev = $self->commit_txn($txn);
 	print "Committed revision $rev.\n";
 
 	$self->{fs}->change_rev_prop ($rev, "svn:author", 'svm');
 	$self->{fs}->change_rev_prop
 	    ($rev, "svn:log", "SVM: initialziing mirror for $self->{target_path}");
+        return 1;
     }
     else {
 	$self->load_state ();
+        return 0;
     }
 }
 
@@ -361,9 +361,25 @@ sub upgrade {
 	}
     }
 
-    my (undef, $rev) = $txn->commit;
+    my $rev = __PACKAGE__->commit_txn($txn);
     $fs->change_rev_prop ($rev, "svn:author", 'svm');
     $fs->change_rev_prop ($rev, "svn:log", 'SVM: upgrading svm mirror state.');
+}
+
+sub commit_txn {
+    my ($self, $txn) = @_;
+    my $rev;
+
+    if ($^O eq 'MSWin32' and -e "$self->{repospath}/db/current") {
+        # XXX - On Win32+fsfs, ->commit works but raises exceptions
+        eval { $txn->commit };
+        $rev = $self->{fs}->youngest_rev;
+    }
+    else {
+        $rev = ($txn->commit)[1];
+    }
+
+    return $rev;
 }
 
 =head1 AUTHORS

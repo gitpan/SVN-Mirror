@@ -1,3 +1,13 @@
+[Changes for 0.47 - Sep 21, 2004]
+
+* Use a new auth baton for each ra session.  This fixes a segfault
+  in t/2basic.t.
+
+* Refactor ->commit_txn for Win32+fsfs, so delete() and update()
+  would also work as advertised. [Autrijus]
+
+* Use fsfs as SVNFSTYPE in test when using svn 1.1. [Autrijus]
+
 [Changes for 0.46 - Sep 20, 2004]
 
 * Fix mirroring on root. [Autrijus]

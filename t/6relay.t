@@ -15,9 +15,10 @@ plan tests => 9;
 my $repospath = "t/repos";
 
 rmtree ([$repospath]) if -d $repospath;
+$ENV{SVNFSTYPE} ||= (($SVN::Core::VERSION =~ /^1\.0/) ? 'bdb' : 'fsfs');
 
 my $repos = SVN::Repos::create($repospath, undef, undef, undef,
-			       {'fs-type' => $ENV{SVNFSTYPE} || 'bdb'})
+			       {'fs-type' => $ENV{SVNFSTYPE}})
     or die "failed to create repository at $repospath";
 
 my $abs_path = File::Spec->rel2abs( $repospath ) ;
