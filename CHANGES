@@ -1,0 +1,32 @@
+[Changes for 0.25 - Nov 13, 2003]
+
+* Allow init with repository object.
+* New function: is_mirrroed.
+* New method: find_local_rev.
+* Fix pool usage that breaks default pool.
+* svm:source now "root!path" - prepared for copy following.
+* Simplify finding anchors for mirroring.
+* Requires 0.33.
+
+[Changes for 0.22 - Nov 4, 2003]
+
+* Check uuid before initializing mirror.
+* Return youngest_rev along with commit editor for use as base rev.
+
+[Changes for 0.21 - Oct 15, 2003]
+
+* Fix version number package.
+* Provide get_merge_back_editor.
+* message cleanups.
+* Fix vsnurl bug for mirroring over dav.
+
+[Changes for 0.20 - Sep 24, 2003]
+
+* Reuse ra-session when same anchor is used.
+  this makes mirroring much faster.
+* svm mergeback support.
+* Fix a bug for partial repository mirroring.
+
+[Changes for 0.1 - Aug 25, 2003]
+
+Initial release.

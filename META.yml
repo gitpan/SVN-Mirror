@@ -1,11 +1,11 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         SVN-Mirror
-version:      0.22
+version:      0.25
 version_from: Mirror.pm
 installdirs:  site
 requires:
-    SVN::Core:                     0.32
+    SVN::Core:                     0.33.0
     URI::Escape:                   0
 
 distribution_type: module

@@ -25,10 +25,10 @@ sub open_directory {
     my ($self,$path,$pb,undef,$pool) = @_;
     return undef unless $pb;
     return $self->{root}
-	if $self->{actual_target} && ($self->{actual_target} eq $path ||
-	    "$path/" eq substr($self->{actual_target}, 0, length($path)+1));
-    $path =~ s|^$self->{actual_target}/|| or return undef
-	if $self->{actual_target};
+	if $self->{target} && ($self->{target} eq $path ||
+	    "$path/" eq substr($self->{target}, 0, length($path)+1));
+    $path =~ s|^$self->{target}/|| or return undef
+	if $self->{target};
 
     return $self->SUPER::open_directory ($path, $pb,
 					 $self->{mirror}{headrev}, $pool);
@@ -37,7 +37,7 @@ sub open_directory {
 sub open_file {
     my ($self,$path,$pb,undef,$pool) = @_;
     return undef unless $pb;
-    $path =~ s|^$self->{actual_target}/|| or return undef
+    $path =~ s|^$self->{target}/|| or return undef
 	if $self->{actuacl_target};
     $self->{opening} = $path;
     return $self->SUPER::open_file ($path, $pb,
@@ -69,10 +69,10 @@ sub add_directory {
     my $pb = shift;
     my ($cp_path,$cp_rev,$pool) = @_;
     return undef unless $pb;
-    return $self->{root} = $pb if $self->{actual_target} &&
-	$self->{actual_target} eq $path;
-    $path =~ s|^$self->{actual_target}/|| or return undef
-	if $self->{actual_target};
+    return $self->{root} = $pb if $self->{target} &&
+	$self->{target} eq $path;
+    $path =~ s|^$self->{target}/|| or return undef
+	if $self->{target};
 
 =for comment
 
@@ -124,8 +124,8 @@ sub add_file {
     my $path = shift;
     my $pb = shift;
     return undef unless $pb;
-    $path =~ s|^$self->{actual_target}/|| or return undef
-	if $self->{actual_target};
+    $path =~ s|^$self->{target}/|| or return undef
+	if $self->{target};
 
     return undef if $self->_ignore($path);
 
@@ -161,7 +161,7 @@ sub get_wc_prop {
 }
 
 package SVN::Mirror;
-our $VERSION = '0.22';
+our $VERSION = '0.25';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -201,50 +201,88 @@ sub new {
     my $self = bless {}, $class;
     %$self = @_;
 
-    die "no repository specified" unless $self->{target};
+    die "no repository specified" unless $self->{target} || $self->{repos};
 
     $self->{pool} ||= SVN::Pool->new_default (undef);
     if ($self->{target_create} && !-e $self->{target}) {
 	$self->{repos} = SVN::Repos::create($self->{target},
 					    undef, undef, undef, undef);
     }
-    else {
-	$self->{repos} = SVN::Repos::open ($self->{target});
+    elsif ($self->{repos}) {
+	$self->{target} = $self->{repos}->path;
     }
+
+    $self->{repos} ||= SVN::Repos::open ($self->{target});
+
     $self->{fs} = $self->{repos}->fs;
 
     return $self;
 }
 
+sub is_mirrored {
+    my ($repos, $path) = @_;
+
+    my $m = SVN::Mirror->new(target_path => $path,
+			     repos => $repos,
+			     pool => SVN::Pool->new,
+			     get_source => 1) or die $@;
+    eval { $m->init };
+    return if $@;
+    return $m;
+}
+
+sub find_local_rev {
+    my ($self, $rrev) = @_;
+    my $pool = SVN::Pool->new_default ($self->{pool});
+
+    my $fs = $self->{repos}->fs;
+
+    my $hist = $fs->revision_root ($fs->youngest_rev)->
+	node_history ($self->{target_path});
+
+    while ($hist = $hist->prev (0)) {
+	my $rev = ($hist->location)[1];
+	return $rev if $rrev ==
+	    $self->{fs}->revision_prop ($rev, "svm:headrev:$self->{source}");
+    }
+
+    die "unable to resolve remote revision $rrev to local revision";
+}
+
 sub init {
     my $self = shift;
-    $self->{pool}->default;
+    my $pool = SVN::Pool->new_default ($self->{pool});
     my $headrev = $self->{headrev} = $self->{fs}->youngest_rev;
     $self->{root} = $self->{fs}->revision_root ($headrev);
 
-    my $txn = SVN::Fs::begin_txn($self->{fs}, $headrev);
+    my $txn = $self->{fs}->begin_txn ($headrev);
     my $txnroot = $txn->root;
     my $new = $self->mkpdir ($txnroot, $self->{target_path});
 
-    $self->{config} = SVN::Core::config_get_config(undef);
+    $self->{config} = SVN::Core::config_get_config(undef, $self->{pool});
 
     unless ($new) {
-	my $prop = SVN::Fs::node_proplist($txnroot, $self->{target_path});
+	my $prop = $txnroot->node_proplist ($self->{target_path});
 	if (my $remote = $prop->{'svm:source'}) {
+	    my ($root, $path) = split ('!', $remote);
+	    warn "old style svm:source"
+		unless defined $path;
+	    $remote = join('', $root, $path);
 	    die "different source"
 		if !$self->{get_source} && $remote ne $self->{source};
 	    $self->{source} = $remote if $self->{get_source};
+	    $self->{source_root} = $root
+		if defined $path;
+
 	    # check revprop of target_path's latest rev for headrev
-	    # $self->{fromrev} = ...
-	    my $changed = SVN::Fs::node_created_rev ($self->{root},
-						     $self->{target_path});
+	    my $changed = $self->{root}->node_created_rev ($self->{target_path});
 
 	    my $prop = $self->{fs}->revision_proplist ($changed);
-	    die "no headrev"
+	    die "no headrev for $self->{source} at rev $changed"
 		unless exists $prop->{"svm:headrev:$self->{source}"};
 	    $self->{fromrev} = $prop->{"svm:headrev:$self->{source}"};
 	    $self->{VSN} = $prop->{"svm:vsnroot:$self->{source}"};
-	    SVN::Fs::abort_txn ($txn);
+	    $txn->abort ();
 	    return;
 	}
     }
@@ -259,13 +297,18 @@ sub init {
 			  callback => 'MyCallbacks');
 
     my $uuid = $ra->get_uuid ();
+    my $source_root = $ra->get_repos_root ();
 
-    $txnroot->change_node_prop ($self->{target_path}, 'svm:uuid', $uuid);
+    $txnroot->change_node_prop ($self->{target_path},
+				'svm:uuid', "$uuid");
 
-    SVN::Fs::change_node_prop ($txnroot, $self->{target_path},
-			       'svm:source', "$self->{source}");
+    my $url = $self->{source};
+    $url =~ s/^$source_root//;
 
-    my (undef, $rev) = SVN::Fs::commit_txn($txn);
+    $txnroot->change_node_prop ($self->{target_path}, 'svm:source',
+				join('!', $source_root, $url));
+
+    my (undef, $rev) = $txn->commit ();
 
     print "Committed revision $rev.\n";
 
@@ -287,9 +330,9 @@ sub mkpdir {
 
     while (@dirs) {
 	$path = File::Spec->join($path, shift @dirs);
-	my $kind = SVN::Fs::check_path($self->{root}, $path);
+	my $kind = $self->{root}->check_path ($path);
 	if ($kind == $SVN::Core::node_none) {
-	    SVN::Fs::make_dir ($root, $path, $self->{pool});
+	    $root->make_dir ($path, $self->{pool});
 	    $new = 1;
 	}
 	elsif ($kind != $SVN::Core::node_dir) {
@@ -300,8 +343,8 @@ sub mkpdir {
 }
 
 sub committed {
-    my ($self, $date, $sourcerev, $pool, $rev) = @_;
-    $pool->default;
+    my ($self, $date, $sourcerev, $rev, undef, undef, $pool) = @_;
+    my $cpool = SVN::Pool->new_default ($pool);
     $self->{fs}->change_rev_prop($rev, 'svn:date', $date);
     $self->{fs}->change_rev_prop($rev, "svm:headrev:$self->{source}",
 				 "$sourcerev",);
@@ -315,11 +358,13 @@ sub committed {
 sub mirror {
     my ($self, $fromrev, $paths, $rev, $author, $date, $msg, $ppool) = @_;
     my $ra;
+
     my $pool = SVN::Pool->new_default ($ppool);
 
-    my $editor = new MirrorEditor SVN::Repos::get_commit_editor
-	($self->{repos}, '', $self->{target_path}, $author, $msg,
-	 sub { $self->committed($date, $rev, $pool, @_) });
+    my $editor = MirrorEditor->new
+	($self->{repos}->get_commit_editor
+	 ('', $self->{target_path}, $author, $msg,
+	  sub { $self->committed($date, $rev, @_) }));
 
     $editor->{mirror} = $self;
 
@@ -333,31 +378,24 @@ sub mirror {
 			 config => $self->{config},
 			 callback => 'MyCallbacks');
     @{$self}{qw/cached_ra cached_ra_url/} = ($ra, $self->{source});
-    # iterate over upper level to get the real anchor
-    if ($fromrev == 0) {
-	while ($ra->check_path("", $self->{fromrev}) == $SVN::Core::node_none) {
-	    (undef, $editor->{anchor}, $editor->{target})
-		= File::Spec->splitpath($editor->{anchor} || $self->{source});
-	    chop $editor->{anchor};
-	    $ra = SVN::Ra->new(url => $editor->{anchor},
-			       pool => SVN::Pool->new,
-			       auth => $self->{auth},
-			       config => $self->{config},
-			       callback => 'MyCallbacks');
 
-	    @{$self}{qw/cached_ra cached_ra_url/} = ($ra, $editor->{anchor});
+    if ($fromrev == 0 && $self->{source} ne $self->{source_root}) {
+	(undef, $editor->{anchor}, $editor->{target})
+	    = File::Spec->splitpath($editor->{anchor} || $self->{source});
+	chop $editor->{anchor};
+	$ra = SVN::Ra->new(url => $editor->{anchor},
+			   pool => SVN::Pool->new,
+			   auth => $self->{auth},
+			   config => $self->{config},
+			   callback => 'MyCallbacks');
 
-#	    warn "new anchor is $editor->{anchor}, new target is $editor->{target}";
-	    $editor->{actual_target} = $editor->{actual_target} ?
-		"$editor->{target}/$editor->{actual_target}" : $editor->{target};
-	}
+	@{$self}{qw/cached_ra cached_ra_url/} = ($ra, $editor->{anchor});
     }
     $ra->{callback}{mirror} = $self;
     $ra->{callback}{editor} = $editor;
 
     my $reporter =
-	$ra->do_diff ($rev, undef, 1, 1,
-		      $editor->{anchor} || $self->{source}, $editor) ;
+	$ra->do_update ($rev, $editor->{target}, 1, $editor);
 
 =for comment TODO - discover copy history in log output
 
@@ -373,7 +411,6 @@ sub mirror {
 
 #    my $start = $self->{skip_to} ? $fromrev : $rev-1;
     my $start = $fromrev || ($self->{skip_to} ? $fromrev : $rev-1);
-    $editor->{target} ||= '';
     $reporter->set_path ('', $start, 0);
     $reporter->finish_report ();
 }
@@ -399,8 +436,7 @@ sub mergeback {
 
     # concat batch merge?
     my $msg = $self->{fs}->revision_prop ($rev, 'svn:log');
-    $msg .= "\n\nmerged from rev $rev of repository ".
-	SVN::Fs::get_uuid($self->{fs});
+    $msg .= "\n\nmerged from rev $rev of repository ".$self->{fs}->get_uuid;
 
     my $editor = $self->get_merge_back_editor ($msg,
 					       sub {warn "committed via RA"});
@@ -408,7 +444,7 @@ sub mergeback {
     # dir_delta ($path, $fromrev, $rev) for commit_editor
     SVN::Repos::dir_delta($self->{fs}->revision_root ($fromrev), $path, undef,
 			  $self->{fs}->revision_root ($rev), $path,
-			  $editor,
+			  $editor, undef,
 			  1, 1, 0, 1
 			 );
 }
@@ -418,7 +454,6 @@ sub run {
     my $startrev = ($self->{skip_to} || 1)-1;
     $startrev = $self->{fromrev}+1 if $self->{fromrev}+1 > $startrev;
     my $endrev = shift || -1;
-
     my $ra = SVN::Ra->new(url => $self->{source}, pool => $self->{pool},
  			  auth => $self->{auth});
 
