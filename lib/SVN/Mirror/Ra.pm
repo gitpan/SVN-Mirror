@@ -15,84 +15,156 @@ sub new {
     %$self = @_;
     $self->{source} =~ s{/+$}{}g;
 
-    my ($root, $path) = split ('!', $self->{source});
-
     @{$self}{qw/source source_root source_path/} =
-	(join('', $root, $path), $root, $path)
-	    if defined $path;
+	_parse_source ($self->{source});
+
+    @{$self}{qw/rsource rsource_root rsource_path/} =
+	_parse_source ($self->{rsource}) if $self->{rsource};
 
     return $self;
 }
 
+sub _parse_source {
+    my $source = shift;
+    my ($root, $path) = split ('!', $source, 2);
+    $path ||= '';
+    return (join('', $root, $path), $root, $path)
+}
+
+sub _store_source {
+    my ($root, $path) = @_;
+    return join('!', $root, $path);
+}
+
+sub _get_prop {
+    my ($self, $ra, $path, $propname) = @_;
+}
+
+sub _is_descendent {
+    my ($parent, $child) = @_;
+    return 1 if $parent eq $child;
+    $parent = "$parent/" unless $parent eq '/';
+    return $parent eq substr ($child, 0, length ($parent));
+}
+
 sub init_state {
     my ($self, $txn) = @_;
-    my $ra = $self->_new_ra;
+    my $ra = $self->_new_ra (url => $self->{source});
 
     my $uuid = $self->{source_uuid} = $ra->get_uuid ();
     my $source_root = $ra->get_repos_root ();
-    my $txnroot = $txn->root;
-
-    $txnroot->change_node_prop ($self->{target_path},
-				'svm:uuid', "$uuid");
-
     my $path = $self->{source};
-    die "source url not under source root"
+    $txn->abort, die "source url not under source root"
 	if substr($path, 0, length($source_root), '') ne $source_root;
 
     $self->{source_root} = $source_root;
     $self->{source_path} = $path;
     $self->{fromrev} = 0;
 
-    return join('!', $source_root, $path);
+    # check if mirror source is already a mirror
+    $ra = $self->_new_ra (url => $self->{source_root})
+	unless $self->{source} eq $self->{source_root};
+
+    # older SVN::RA will return Reporter so prop would be undef
+    my (undef, undef, $prop) = $ra->get_dir ('/', -1);
+    if ($prop && $prop->{'svm:mirror'}) {
+	my $rroot;
+	for ($prop->{'svm:mirror'} =~ m/^.*$/mg) {
+	    if (_is_descendent ($_, $self->{source_path})) {
+		$rroot = $_;
+		last;
+	    }
+	    elsif (_is_descendent ($self->{source_path}, $_)) {
+		die "Can't relay mirror outside mirror anchor $_";
+	    }
+	}
+	if ($rroot) {
+	    (undef, undef, $prop) = $ra->get_dir ($rroot, -1);
+	    die "relayed mirror source doesn't not have svm:source"
+		unless exists $prop->{'svm:source'};
+	    @{$self}{qw/rsource rsource_root rsource_path/} =
+		@{$self}{qw/source source_root source_path/};
+	    $self->{rsource_uuid} = $uuid;
+	    $self->{source_path} =~ s/^\Q$rroot\E//;
+	    @{$self}{qw/source source_uuid/} = @{$prop}{qw/svm:source svm:uuid/};
+	    $self->{source} .= '!' if index ($self->{source}, '!') == -1;
+	    @{$self}{qw/source source_root source_path/} =
+		_parse_source ($self->{source}.$self->{source_path});
+
+	    die "relayed source and source have same repository uuid"
+		if $self->{source_uuid} eq $self->{rsource_uuid};
+
+	    my $txnroot = $txn->root;
+	    $txnroot->change_node_prop ($self->{target_path}, 'svm:rsource',
+					_store_source ($source_root, $path));
+	    $txnroot->change_node_prop ($self->{target_path}, 'svm:ruuid',
+					$uuid);
+	    $txn->change_prop ("svm:headrev", "$self->{rsource_uuid}:$self->{fromrev}\n");
+
+	    return _store_source ($self->{source_root}, $self->{source_path});
+	}
+    }
+
+    @{$self}{qw/rsource rsource_root rsource_path/} =
+	@{$self}{qw/source source_root source_path/};
+
+    $self->{rsource_uuid} = $self->{source_uuid};
+
+    $txn->change_prop ("svm:headrev", "$self->{rsource_uuid}:$self->{fromrev}\n");
+    return _store_source ($source_root, $path);
 }
 
 sub load_state {
-    my ($self, $txn) = @_;
+    my ($self) = @_;
 
-    my $txnroot = $txn->root;
+    my $prop = $self->{root}->node_proplist ($self->{target_path});
+    @{$self}{qw/source_uuid rsource_uuid/} =
+	@{$prop}{qw/svm:uuid svm:ruuid/};
+    unless ($self->{rsource}) {
+	@{$self}{qw/rsource rsource_root rsource_path/} =
+	    @{$self}{qw/source source_root source_path/};
+	$self->{rsource_uuid} = $self->{source_uuid};
+    }
+
+    die "please upgrade the mirror state\n"
+	if $self->{root}->node_prop ('/', join (':', 'svm:mirror', $self->{source_uuid},
+						$self->{source_path} || '/'));
+
     my $changed = $self->{root}->node_created_rev ($self->{target_path});
-
-    my $prop = $self->{fs}->revision_proplist ($changed);
-    die "no headrev for $self->{source} at rev $changed"
-	unless exists $prop->{"svm:headrev:$self->{source}"};
-    $self->{fromrev} = $prop->{"svm:headrev:$self->{source}"};
-    $self->{VSN} = $prop->{"svm:vsnroot:$self->{source}"};
-    # upgrade for 0.27
-    $self->{source_uuid} = $txnroot->node_prop ($self->{target_path}, 'svm:uuid');
-    my $info = "svm:mirror:$self->{source_uuid}:".($self->{source_path} || '/');
-
-    unless ($txnroot->node_prop ('/', $info)) {
-	$txnroot->change_node_prop ('/', $info, $self->{target_path});
-	my (undef, $rev) = $txn->commit ();
-	$self->{fs}->change_rev_prop ($rev, "svm:headrev:$self->{source}", $self->{fromrev});
-	$self->{fs}->change_rev_prop ($rev, "svn:author", 'svm');
-	$self->{fs}->change_rev_prop
-		    ($rev, "svn:log", "SVM: upgraded info for $self->{target_path}.");
-    }
-    else {
-	$txn->abort ();
-    }
+    $prop = $self->{fs}->revision_prop ($changed, 'svm:headrev');
+    die "no headrev" unless $prop;
+    my %revs = map {split (':', $_)} $prop =~ m/^.*$/mg;
+    die "no headrev for $self->{rsource} at rev $changed"
+	unless exists $revs{$self->{rsource_uuid}};
+    $self->{fromrev} = $revs{$self->{rsource_uuid}};
+    return;
 }
 
 sub _new_ra {
     my ($self, %arg) = @_;
-    SVN::Ra->new( url => $self->{source},
+    SVN::Ra->new( url => $self->{rsource},
 		  auth => $self->{auth},
-		  pool => $self->{pool},
+		  pool => SVN::Pool->new,
 		  config => $self->{config},
 		  %arg);
 }
 
+sub _revmap {
+    my ($self, $rev, $ra) = @_;
+    $ra ||= $self->{cached_ra};
+    $SVN::Core::VERSION ge '1.1.0' ?
+	$ra->rev_prop ($rev, 'svm:headrev') :
+	$ra->rev_proplist ($rev)->{'svm:headrev'};
+}
+
 sub committed {
-    my ($self, $date, $sourcerev, $rev, undef, undef, $pool) = @_;
+    my ($self, $revmap, $date, $sourcerev, $rev, undef, undef, $pool) = @_;
     local $SIG{INT} = 'IGNORE';
     local $SIG{TERM} = 'IGNORE';
     my $cpool = SVN::Pool->new_default ($pool);
     $self->{fs}->change_rev_prop($rev, 'svn:date', $date);
-    $self->{fs}->change_rev_prop($rev, "svm:headrev:$self->{source}",
-				 "$sourcerev",);
-    $self->{fs}->change_rev_prop($rev, "svm:vsnroot:$self->{source}",
-				 "$self->{VSN}") if $self->{VSN};
+    # sync remote headrev too
+    $self->{fs}->change_rev_prop($rev, 'svm:headrev', $revmap."$self->{rsource_uuid}:$sourcerev\n");
     $self->{headrev} = $rev;
 
     print "Committed revision $rev from revision $sourcerev.\n";
@@ -103,29 +175,33 @@ sub mirror {
     my $ra;
 
     my $pool = SVN::Pool->new_default ($ppool);
-    my $newrev;
+    my ($newrev, $revmap);
     use SVN::Mirror::Ra;
+
+    $ra = $self->{cached_ra}
+	if exists $self->{cached_ra_url} &&
+	    $self->{cached_ra_url} eq $self->{rsource};
+    $ra ||= $self->_new_ra;
+
+    $revmap = $self->_revmap ($rev, $ra) if $self->_relayed;
+    $revmap ||= '';
+
     my $editor = SVN::Mirror::Ra::MirrorEditor->new
 	($self->{repos}->get_commit_editor
 	 ('', $self->{target_path}, $author, $msg,
-	  sub { $newrev = $_[0]; $self->committed($date, $rev, @_) }));
+	  sub { $newrev = $_[0];
+		$self->committed ($revmap, $date, $rev, @_) }));
 
     $self->{working} = $rev;
     $editor->{mirror} = $self;
 
-    $ra = $self->{cached_ra}
-	if exists $self->{cached_ra_url} &&
-	    $self->{cached_ra_url} eq $self->{source};
-
-    $ra ||= $self->_new_ra ( pool => SVN::Pool->new );
-    @{$self}{qw/cached_ra cached_ra_url/} = ($ra, $self->{source});
-
+    @{$self}{qw/cached_ra cached_ra_url/} = ($ra, $self->{rsource});
     if ( ( $fromrev == 0
-           || !(defined $fromrev && $self->find_local_rev($fromrev)) )
-         && $self->{source} ne $self->{source_root}
+           || !(defined $fromrev && $self->find_local_rev($fromrev, $self->{rsource_uuid})) )
+         && $self->{rsource} ne $self->{rsource_root}
        ) {
 	(undef, $editor->{anchor}, $editor->{target})
-	    = File::Spec->splitpath($editor->{anchor} || $self->{source});
+	    = File::Spec->splitpath($editor->{anchor} || $self->{rsource});
 	chop $editor->{anchor};
 	$ra = $self->_new_ra ( url => $editor->{anchor}, pool => SVN::Pool->new );
 	@{$self}{qw/cached_ra cached_ra_url/} = ($ra, $editor->{anchor});
@@ -167,12 +243,12 @@ The structure of mod_lists:
 
         my $svn_lpath = my $local_path = $_;
         if ( $editor->{anchor} ) {
-            $svn_lpath = $self->{source_root} . $svn_lpath;
+            $svn_lpath = $self->{rsource_root} . $svn_lpath;
             $svn_lpath =~ s|^\Q$editor->{anchor}\E/?||;
-            my $source_path = $self->{source_path} || "/";
+            my $source_path = $self->{rsource_path} || "/";
             $local_path =~ s|^$source_path|$self->{target_path}|;
         } else {
-            $svn_lpath =~ s|^$self->{source_path}/?||;
+            $svn_lpath =~ s|^$self->{rsource_path}/?||;
             $local_path = "$self->{target_path}/$svn_lpath";
         }
 
@@ -182,15 +258,16 @@ The structure of mod_lists:
                   $item->copyfrom_path,
                   $item->copyfrom_rev,
                   ($item->copyfrom_rev == -1) ?
-                    -1 : $self->find_local_rev ($item->copyfrom_rev) || undef,
+                    -1 : $self->find_local_rev ($item->copyfrom_rev, $self->{rsource_uuid}) || undef,
                   $local_path,
                 );
-
+	# XXX: workaround fsfs remoet_path inconsistencies
+	$rpath = "/$rpath" if $rpath && substr ($rpath, 0, 1) ne '/';
         my ($src_lpath, $source_node_kind) = (undef, $SVN::Node::unknown);
         if ( defined $lrev && $lrev != -1 ) {
             my $rev_root = $self->{fs}->revision_root ($lrev);
             $src_lpath = $rpath;
-            $src_lpath =~ s|^$self->{source_path}|$self->{target_path}|;
+            $src_lpath =~ s|^\Q$self->{rsource_path}\E|$self->{target_path}|;
             $source_node_kind = $rev_root->check_path ($src_lpath);
 
             if ( $source_node_kind == $SVN::Node::none ) {
@@ -203,7 +280,7 @@ The structure of mod_lists:
         @$href{qw/local_source_path source_node_kind/} =
             ( $src_lpath, $source_node_kind );
 
-        if ( /^$self->{source_path}/ ) {
+        if ( /^$self->{rsource_path}/ ) {
             $editor->{mod_lists}{$svn_lpath} = $href;
         } else {
             $not_processed{$svn_lpath} = $href;
@@ -221,6 +298,7 @@ The structure of mod_lists:
                          && $href->{source_node_kind} == $SVN::Node::dir)
                        || $href->{action} eq 'D' )
                 } @mod_list ) {
+	    my $pool = SVN::Pool->new_default_sub;
             my $start = $fromrev || ($self->{skip_to} ? $fromrev : $rev-1);
             my $reporter =
                 $ra->do_update ($rev, $editor->{target} || '', 1, $editor);
@@ -262,14 +340,23 @@ The structure of mod_lists:
     }
 }
 
+sub _relayed { $_[0]->{rsource} ne $_[0]->{source} }
+
 sub get_merge_back_editor {
     my ($self, $path, $msg, $committed) = @_;
-    # get ra commit editor for $self->{source}
-    my $ra = $self->_new_ra ( url => "$self->{source}$path" );
-    my $youngest_rev = $ra->get_latest_revnum;
+    die "relayed merge back not supported yet" if $self->_relayed;
+    @{$self}{qw/cached_ra cached_ra_url/} =
+	($self->_new_ra ( url => "$self->{source}$path"), "$self->{source}$path" );
 
-    return ($youngest_rev,
-	    SVN::Delta::Editor->new ($ra->get_commit_editor ($msg, $committed)));
+    return ($self->{fromrev}, SVN::Delta::Editor->new
+	    ($self->{cached_ra}->get_commit_editor ($msg, $committed)));
+}
+
+sub switch {
+    my ($self, $url) = @_;
+    my $ra = $self->_new_ra (url => $url);
+    die "uuid is different" unless $ra->get_uuid eq $self->{source_uuid};
+    warn "===> switching from $self->{source} to $url";
 }
 
 sub run {
@@ -280,7 +367,7 @@ sub run {
     my $ra = $self->_new_ra;
     $endrev = $ra->get_latest_revnum () if $endrev == -1;
 
-    print "Syncing $self->{source}\n";
+    print "Syncing $self->{source}".($self->_relayed ? " via $self->{rsource}\n" : "\n");
 
     return unless $endrev == -1 || $startrev <= $endrev;
 
@@ -294,12 +381,18 @@ sub run {
 		      if (defined $self->{skip_to} && $rev < $self->{skip_to}) {
 			  $author = 'svm';
 			  $msg = sprintf('SVM: skipping changes %d-%d for %s',
-					 $self->{fromrev}, $rev, $self->{source});
+					 $self->{fromrev}, $rev, $self->{rsource});
 		      }
 		      $self->mirror($self->{fromrev}, $paths, $rev, $author,
 				    $date, $msg, $pool);
 		      $self->{fromrev} = $rev;
 		  });
+}
+
+sub DESTROY {
+    # bizzare pool reference
+    undef $_[0]->{cached_ra}{callback};
+    undef $_[0]->{cached_ra};
 }
 
 package SVN::Mirror::Ra::MirrorEditor;
@@ -415,11 +508,11 @@ sub _translate_rel_path {
     } else {
         if ( $self->{anchor} ) {
             $path = "$self->{anchor}/$path";
-            $path =~ s|\Q$self->{mirror}{source_root}\E||;
+            $path =~ s|\Q$self->{mirror}{rsource_root}\E||;
         } else {
-            $path = "$self->{mirror}{source_path}/$path";
+            $path = "$self->{mirror}{rsource_path}/$path";
         }
-        $path =~ s|^$self->{mirror}{source_path}|$self->{mirror}{target_path}|;
+        $path =~ s|^$self->{mirror}{rsource_path}|$self->{mirror}{target_path}|;
         return $path;
     }
 
@@ -794,7 +887,7 @@ sub delete_entry {
     print "MirrorEditor::delete_entry($path, $rev)\n" if $debug;
     return unless $pb;
 
-    my $source_path = $self->{mirror}{source_path};
+    my $source_path = $self->{mirror}{rsource_path};
     my $target_path = $self->{mirror}{target_path};
     $source_path =~ s{^/}{};
     if ($source_path && $path =~ m/^$source_path/) {

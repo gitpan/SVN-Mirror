@@ -24,6 +24,9 @@ t/1use.t
 t/2basic.t
 t/3vcp-cvs.t
 t/4vcp-p4.t
+t/5upgrade.t
+t/6relay.t
+t/test_old.dump
 t/test_repo.dump
 t/cvs-test-data/CVSROOT/README
 t/cvs-test-data/CVSROOT/val-tags

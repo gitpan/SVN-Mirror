@@ -29,8 +29,6 @@ sub pre_init {
     die "$v not supported" unless $v;
     $self->{vcp_source} = $name;
     @{$self}{qw/source_root source_path/} = $self->{source} =~ m/^(.+):([^:]+)$/;
-    $self->{source_uuid} = lc (Data::UUID->new->create_from_name_str
-			       (&Data::UUID::NameSpace_DNS, $self->{source_root}));
 }
 
 sub map_filter_p4 {
@@ -75,23 +73,30 @@ sub map_filter {
 
 sub init_state {
     my ($self) = @_;
+    $self->{source_uuid} = lc (Data::UUID->new->create_from_name_str
+			       (&Data::UUID::NameSpace_DNS, $self->{source_root}));
     return join (' ', $self->{source}, @{$self->{options}});
 }
 
 sub load_state {
+    my ($self) = @_;
+    $self->{source_uuid} = $self->{root}->node_prop ($self->{target_path}, 'svm:uuid');
 }
 
 sub run {
     my $self = shift;
-    my $source = $self->{vcp_source}->new ($self->{source}, ['--continue']);
+    my $dbdir = File::Spec->catdir ($self->{repospath}, 'vcp_state');
+    my $source = $self->{vcp_source}->new
+	($self->{source}, ['--continue', '--db-dir', $dbdir, '--repo-id', 'cvs']);
 
     my $dest = VCP::Dest::svk->new ("svk:$self->{repospath}:$self->{target_path}",
-				    [$self->{branch_only} ? '--nolayout' : ()]);
+				    ['--db-dir', $dbdir, '--repo-id', 'svk',
+				     $self->{branch_only} ? '--nolayout' : ()]);
     $dest->{SVK_REPOS} = $self->{repos};
     $dest->{SVK_REPOSPATH} = $self->{repospath};
     $dest->{SVK_COMMIT_CALLBACK} = sub {
 	my ($rev, $rrev) = @_;
-	$self->{fs}->change_rev_prop ($rev, "svm:headrev:$self->{source}", $rrev);
+	$self->{fs}->change_rev_prop ($rev, 'svm:headrev', "$self->{source_uuid}:$rrev\n");
     };
 
     my @plugins = ($source, $self->map_filter ($self->{source_scheme}), $dest);

@@ -8,24 +8,25 @@ use strict;
 plan skip_all => "can't find svnadmin"
     unless -x '/usr/local/bin/svnadmin' || -x '/usr/bin/svnadmin';
 
-plan tests => 4;
+plan tests => 15;
 my $repospath = "t/repos";
 
 rmtree ([$repospath]) if -d $repospath;
 
-
-`svnadmin create $repospath`;
+my $repos = SVN::Repos::create($repospath, undef, undef, undef,
+			       {'fs-type' => $ENV{SVNFSTYPE} || 'bdb'})
+    or die "failed to create repository at $repospath";
 
 my $abs_path = File::Spec->rel2abs( $repospath ) ;
 `svn mkdir -m 'init' file://$abs_path/source`;
 `svnadmin load --parent-dir source $repospath < t/test_repo.dump`;
 
-my $m = SVN::Mirror->new(target_path => 'fullcopy', target => $abs_path,
-			 source => "file://$abs_path/source", target_create => 1);
+my $m = SVN::Mirror->new(target_path => '/fullcopy', repos => $repos,
+			 source => "file://$abs_path/source");
 is (ref $m, 'SVN::Mirror::Ra');
 $m->init ();
 
-$m = SVN::Mirror->new (target_path => 'fullcopy', target => $abs_path,
+$m = SVN::Mirror->new (target_path => '/fullcopy', repos => $repos,
 		       get_source => 1,);
 
 is ($m->{source}, "file://$abs_path/source");
@@ -34,9 +35,40 @@ $m->run ();
 
 ok(1);
 
-$m = SVN::Mirror->new(target_path => 'partial', target => $abs_path,
-		      source => "file://$abs_path/source/svnperl_002", target_create => 1);
+$m = SVN::Mirror->new(target_path => '/partial', repos => $repos,
+		      source => "file://$abs_path/source/svnperl_002");
 $m->init ();
 $m->run ();
 
 ok(1);
+my @mirrored = SVN::Mirror::list_mirror ($repos);
+is_deeply ([sort @mirrored], ['/fullcopy', '/partial'],
+	   'list mirror');
+is ((SVN::Mirror::is_mirrored ($repos, '/fullcopy'))[1], '',
+    'is_mirrored anchor');
+is ((SVN::Mirror::is_mirrored ($repos, '/fullcopy/svnperl_002'))[1], '/svnperl_002',
+    'is_mirrored descendent');
+is_deeply ([SVN::Mirror::is_mirrored ($repos, '/nah')], [],
+	  'is_mirrored none');
+
+$m->delete;
+
+@mirrored = SVN::Mirror::list_mirror ($repos);
+is_deeply (\@mirrored, ['/fullcopy'], 'discard mirror');
+
+my $fs = $repos->fs;
+my $uuid = $fs->get_uuid;
+my $root = $fs->revision_root ($fs->youngest_rev);
+use YAML;
+#warn YAML::Dump ($root->node_proplist ('/'));
+is ((SVN::Mirror::has_local ($repos, "$uuid:/source/svnperl/t"))[1], '/svnperl/t',
+    'has_local descendent');
+is ((SVN::Mirror::has_local ($repos, "$uuid:/source"))[1], '',
+    'has_local anchor');
+is_deeply ([SVN::Mirror::has_local ($repos, "$uuid:/source-non")], [],
+	   'has_local none');
+
+$m = SVN::Mirror::has_local ($repos, "$uuid:/source");
+is ($m->find_local_rev (28), 58, 'find_local_rev');
+is (scalar $m->find_remote_rev (58), 28, 'find_remote_rev');
+is_deeply ({$m->find_remote_rev (58)}, {$m->{source_uuid} => 28}, 'find_remote_rev - hash');

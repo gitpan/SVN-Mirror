@@ -1,3 +1,16 @@
+[Changes for 0.40 - Aug 4, 2004]
+
+* Change mirror state to avoid using '/' in property names that svn
+  forbids.
+
+* Add API for upgrading and remote revision lookup.
+
+* Add cache for find_local_rev.
+
+* Support relayed mirroring in Ra backend.
+
+* Fix some bizzare pool reference and usage that causes leak over long sync.
+
 [Changes for 0.38 - Jul 14, 2004]
 
 * Fix a bug that non-canonical path might enter svn api.

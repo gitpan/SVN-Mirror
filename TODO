@@ -1,8 +1,6 @@
-* support relayed mirror.
+- Documentation!
 
-* '/' is not a legal char in propname.
-
-VCP:
+- VCP:
 * real branch creation and cleanups.
 * handle mixed revision branching better.
 * prop on / should be fixed so sync -a will work.

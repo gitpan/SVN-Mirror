@@ -6,7 +6,7 @@ at http://subversion.tigris.org/.
 
 * Installation
 
-You need subversion 0.33 release or newer, with perl bindings support
+You need subversion 1.0.4 release or newer, with perl bindings support
 to use SVN::Mirror.
 
 SVN::Mirror uses the stanard perl module install process:
@@ -22,7 +22,7 @@ After install the module, see perldoc svm for more information.
 * Latest version
 
 The latest SVN::Mirror could be found at:
-http://svn.elixus.org/svnweb/repos/browse/member/clkao/SVN-Mirror/
+svn://svn.clkao.org/member/clkao/modules/SVN-Mirror/
 
 
 * Copyright
