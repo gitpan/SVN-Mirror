@@ -6,7 +6,7 @@ use File::Path;
 use File::Spec;
 
 if( eval "use VCP::Dest::svk; 1" ) {
-    plan tests => 8;
+    plan tests => 10;
 }
 else {
     plan skip_all => 'VCP::Dest::svk not installed';
@@ -26,6 +26,7 @@ $m = SVN::Mirror->new (target_path => 'cvs-trunk',
 		       options => ['--branch-only=trunk'],
 		       source => "cvs:$cvsroot:kuso/...");
 $m->init;
+is_deeply ($m->{options}, ["--branch-only=trunk"]);
 $m = SVN::Mirror->new (target_path => 'cvs-trunk',
 		       repospath => $abs_path,
 		       repos_create => 1,
@@ -33,6 +34,7 @@ $m = SVN::Mirror->new (target_path => 'cvs-trunk',
 $m->init;
 is (ref $m, 'SVN::Mirror::VCP');
 is ($m->{source}, "cvs:$cvsroot:kuso/...");
+is_deeply ($m->{options}, ["--branch-only=trunk"]);
 $m->run;
 
 my ($m2, $mpath);

@@ -1,9 +1,10 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.47';
+our $VERSION = '0.48';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
+use File::Spec::Unix;
 use strict;
 
 =head1 NAME
@@ -50,7 +51,7 @@ sub _schema_class {
     my ($url) = @_;
     die "no source specificed" unless $url;
     return 'SVN::Mirror::Ra' if $url =~ m/^(https?|file|svn(\+.*?)?):/;
-    return 'SVN::Mirror::VCP' if $url =~ m/^(p4|cvs)/ and eval {
+    return 'SVN::Mirror::VCP' if $url =~ m/^(p4|cvs|arch)/ and eval {
 	require SVN::Mirror::VCP; 1
     };
 
@@ -87,9 +88,7 @@ sub new {
     my $fs = $self->{fs} = $self->{repos}->fs;
 
     my $root = $fs->revision_root ($fs->youngest_rev);
-    $self->{target_path} =~ s{/+$}{}g;
-    $self->{target_path} = '/'.$self->{target_path}
-	unless substr ($self->{target_path}, 0, 1) eq '/';
+    $self->{target_path} = File::Spec::Unix->canonpath("/$self->{target_path}");
 
     if ($root->check_path ($self->{target_path}) != $SVN::Node::none) {
 	$self->{rsource} = $root->node_prop ($self->{target_path}, 'svm:rsource');
@@ -179,7 +178,7 @@ sub find_local_rev {
     my $fs = $self->{repos}->fs;
     $uuid ||= $self->{source_uuid};
     # XXX: make better use of the cache
-    my $cache = $CACHE{$uuid} ||= {};
+    my $cache = $CACHE{$fs->get_uuid}{$uuid} ||= {};
     return $cache->{$rrev} if exists $cache->{$rrev};
     # We cannot try to get node_history() on $self->{target_path}.  If
     # a copy is from an empty revision, we'll never get its local
@@ -243,34 +242,82 @@ sub pre_init {}
 sub init {
     my $self = shift;
     my $pool = SVN::Pool->new_default ($self->{pool});
-    my $headrev = $self->{headrev} = $self->{fs}->youngest_rev;
-    $self->{root} = $self->{fs}->revision_root ($headrev);
-    my $new = ($self->{target_path} eq '/' and not $self->{fs}->revision_root($headrev)->node_prop('/', 'svm:source')) || ($self->{root}->check_path ($self->{target_path}) == $SVN::Node::none);
-    $self->pre_init ($new);
 
-    if ($new) {
-	my $txn = $self->{fs}->begin_txn ($headrev);
-	my $txnroot = $txn->root;
-	$self->mkpdir ($txnroot, $self->{target_path});
-
-	my $source = $self->init_state ($txn);
-	my $mirrors = $txnroot->node_prop ('/', 'svm:mirror') || '';
-	$txnroot->change_node_prop ('/', 'svm:mirror', "$mirrors$self->{target_path}\n");
-	$txnroot->change_node_prop ($self->{target_path}, 'svm:source', $source);
-	$txnroot->change_node_prop ($self->{target_path}, 'svm:uuid', $self->{source_uuid});
-
-	my $rev = $self->commit_txn($txn);
-	print "Committed revision $rev.\n";
-
-	$self->{fs}->change_rev_prop ($rev, "svn:author", 'svm');
-	$self->{fs}->change_rev_prop
-	    ($rev, "svn:log", "SVM: initialziing mirror for $self->{target_path}");
-        return 1;
-    }
-    else {
+    if ($self->is_initialized) {
+        $self->pre_init (0);
 	$self->load_state ();
         return 0;
     }
+
+    return $self->do_initialize;
+}
+
+sub is_initialized {
+    my $self = shift;
+    my $headrev = $self->{headrev} ||= $self->{fs}->youngest_rev;
+    $self->{root} ||= $self->{fs}->revision_root ($headrev);
+
+    if ($self->{target_path} eq '/') {
+        $self->{fs}->revision_root($self->{headrev})->node_prop('/', 'svm:source');
+    }
+    else {
+        $self->{root}->check_path ($self->{target_path}) != $SVN::Node::none;
+    }
+}
+
+sub do_initialize {
+    my $self = shift;
+
+    $self->pre_init (1);
+
+    my $txn = $self->{fs}->begin_txn ($self->{headrev});
+    my $txnroot = $txn->root;
+    $self->mkpdir ($txnroot, $self->{target_path});
+
+    my $source = $self->init_state ($txn);
+    my %mirrors = map { ($_ => 1) }
+                  split(/\n/, $txnroot->node_prop ('/', 'svm:mirror') || '');
+    $mirrors{$self->{target_path}}++;
+
+    $txnroot->change_node_prop ('/', 'svm:mirror', join("\n", (grep length, sort keys %mirrors), ''));
+    $txnroot->change_node_prop ($self->{target_path}, 'svm:source', $source);
+    $txnroot->change_node_prop ($self->{target_path}, 'svm:uuid', $self->{source_uuid});
+
+    my $rev = $self->commit_txn($txn);
+    print "Committed revision $rev.\n";
+
+    $self->{fs}->change_rev_prop ($rev, "svn:author", 'svm');
+    $self->{fs}->change_rev_prop
+        ($rev, "svn:log", "SVM: initializing mirror for $self->{target_path}");
+
+    return $rev;
+}
+
+sub relocate {
+    my $self = shift;
+    my $pool = SVN::Pool->new_default ($self->{pool});
+    my $headrev = $self->{headrev} = $self->{fs}->youngest_rev;
+    $self->{root} = $self->{fs}->revision_root ($headrev);
+
+    $self->is_initialized
+        or die "Cannot relocate uninitialized path $self->{target_path}";
+
+    $self->pre_init (0);
+    $self->load_state ();
+
+    my $ra = $self->_new_ra (url => $self->{source});
+    die "uuid is different" unless $ra->get_uuid eq $self->{source_uuid};
+
+    # Get latest revprops
+    my $old_prevs = $self->{fs}->revision_proplist(
+        $self->find_local_rev($self->{fromrev}) , $pool
+    );
+
+    my $rev = $self->do_initialize;
+    $self->{fs}->change_rev_prop ($rev, $_ => $old_prevs->{$_})
+        for sort grep /^svm:/, keys %$old_prevs;
+
+    return $rev;
 }
 
 sub mergeback {

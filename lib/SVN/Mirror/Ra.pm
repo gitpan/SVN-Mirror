@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.47';
+$VERSION = '0.48';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -157,13 +157,15 @@ sub _new_ra {
     $self->{config} ||= SVN::Core::config_get_config (undef, $self->{pool});
     SVN::Ra->new( url => $self->{rsource},
 		  auth => $self->_new_auth,
-		  pool => SVN::Pool->new,
 		  config => $self->{config},
 		  %arg);
 }
 
 sub _new_auth {
     my ($self) = @_;
+    # create a subpool that is not automatically destroyed
+    my $pool = SVN::Pool::create (${$self->{pool}});
+    $pool->default;
     my ($baton, $ref) = SVN::Core::auth_open_helper([
         SVN::Client::get_simple_provider (),
         SVN::Client::get_ssl_server_trust_file_provider (),
@@ -238,7 +240,6 @@ sub _ssl_server_trust_prompt {
         $cred->accepted_failures($failures);
     }
     elsif ($may_save and $choice eq 'p') {
-	warn "==> save!";
         $cred->may_save(1);
         $cred->accepted_failures($failures);
     }
@@ -506,7 +507,7 @@ sub switch {
     my $ra = $self->_new_ra (url => $url);
     # XXX: get proper uuid like init_state
     die "uuid is different" unless $ra->get_uuid eq $self->{source_uuid};
-    warn "===> switching from $self->{source} to $url";
+    # warn "===> switching from $self->{source} to $url";
     # get a txn, change rsource and rsource_uuidto new url
 }
 
