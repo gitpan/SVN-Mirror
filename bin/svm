@@ -19,6 +19,11 @@ svm - command line interface for remote Subversion repository mirroring
     # run the actual mirroring
     % svm sync mirror/svn
 
+    # merge back changes in local branch
+    % svn cp file://$SVMREPOS/mirror/svn file://$SVMREPOS/svn-local
+    # make some changes and then merge back to source repository
+    % svm mergeback mirror/svn svn-local
+
 =head1 DESCRIPTION
 
 F<svm> mirrors remote repository accissible via L<SVN::Ra> interface
@@ -44,6 +49,7 @@ how it is initialized.
 
 my $repospath = $ENV{SVMREPOS} || $ENV{HOME}.'/svn/svm';
 my $auth = SVN::Core::auth_open ([SVN::Client::get_simple_provider,
+				  SVN::Client::get_ssl_server_file_provider,
 				  SVN::Client::get_username_provider]);
 
 sub help {
@@ -53,6 +59,7 @@ sub help {
 }
 
 sub init {
+    die "$0 init <path> <source>" unless $#_ == 1;
     my ($path, $source) = @_;
     my $m = SVN::Mirror->new(target_path => $path, target => $repospath,
 			     auth => $auth,
@@ -97,6 +104,16 @@ sub sync {
 	sleep 5;
     }
 
+}
+
+sub mergeback {
+    my ($path, $branch_path, $rev) = @_;
+    my $pool = SVN::Pool->new_default;
+    my $m = SVN::Mirror->new(target_path => $path, target => $repospath,
+			     pool => $pool, auth => $auth,
+			     get_source => 1);
+    $m->init;
+    $m->mergeback ($rev-1, $branch_path, $rev);
 }
 
 my $cmd = shift || 'help';

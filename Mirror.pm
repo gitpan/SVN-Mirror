@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use SVN::Core;
 package MirrorEditor;
-$VERSION = '0.1';
+$VERSION = '0.20';
 @ISA = ('SVN::Delta::Editor');
 use strict;
 
@@ -76,7 +76,7 @@ sub add_directory {
     $path =~ s|^$self->{actual_target}/|| or return undef
 	if $self->{actual_target};
 
-=comment
+=for comment
 
     my ($rev, $frompath) = SVN::Fs::copied_from($self->{root}, $path, $pool);
     if ($frompath) {
@@ -109,7 +109,7 @@ sub apply_textdelta {
 sub close_directory {
     my $self = shift;
     my $baton = shift;
-    return unless $baton;
+    return unless $baton && $baton ne $self->{root};
     $self->{mirror}{VSN} = $self->{NEWVSN}
 	if $baton == $self->{root} && $self->{NEWVSN};
     $self->SUPER::close_directory ($baton);
@@ -136,16 +136,16 @@ sub add_file {
 
 sub delete_entry {
     my ($self, $path, $rev, $pb, $pool) = @_;
-    return unless $pb;
+    return unless $pb && $pb ne $self->{root};
+    warn "delete $path";
     $self->SUPER::delete_entry ($path, $rev, $pb, $pool);
 }
 
-=todo return unless there is actual modifications
-
 sub close_edit {
+    my ($self) = @_;
+    $self->SUPER::close_directory ($self->{root});
+    $self->SUPER::close_edit (@_);
 }
-
-=cut
 
 package MyCallbacks;
 
@@ -307,35 +307,38 @@ sub committed {
 
 sub mirror {
     my ($self, $fromrev, $paths, $rev, $author, $date, $msg, $ppool) = @_;
+    my $ra;
     my $pool = SVN::Pool->new_default ($ppool);
 
     my $editor = new MirrorEditor SVN::Repos::get_commit_editor
 	($self->{repos}, '', $self->{target_path}, $author, $msg,
 	 sub { $self->committed($date, $rev, $pool, @_) });
 
-#    $editor->{_debug} = 1;
     $editor->{mirror} = $self;
 
-    my $rapool = SVN::Pool->new ($pool);
-    my $ra = SVN::Ra->new(url => $self->{source},
-			  auth => $self->{auth},
-			  pool => $rapool,
-			  config => $self->{config},
-			  callback => 'MyCallbacks');
+    $ra = $self->{cached_ra}
+	if $self->{cached_ra_url} eq $self->{source};
 
+    $ra ||= SVN::Ra->new(url => $self->{source},
+			 auth => $self->{auth},
+			 pool => SVN::Pool->new,
+			 config => $self->{config},
+			 callback => 'MyCallbacks');
+    @{$self}{qw/cached_ra cached_ra_url/} = ($ra, $self->{source});
     # iterate over upper level to get the real anchor
     if ($fromrev == 0) {
 	while ($ra->check_path("", $self->{fromrev}) == $SVN::Core::node_none) {
 	    (undef, $editor->{anchor}, $editor->{target})
 		= File::Spec->splitpath($editor->{anchor} || $self->{source});
 	    chop $editor->{anchor};
-	    $rapool = SVN::Pool->new ($pool);
-	    use Internals qw/GetRefCount/;
 	    $ra = SVN::Ra->new(url => $editor->{anchor},
-			       pool => $rapool,
+			       pool => SVN::Pool->new,
 			       auth => $self->{auth},
 			       config => $self->{config},
 			       callback => 'MyCallbacks');
+
+	    @{$self}{qw/cached_ra cached_ra_url/} = ($ra, $editor->{anchor});
+
 	    warn "new anchor is $editor->{anchor}, new target is $editor->{target}";
 	    $editor->{actual_target} = $editor->{actual_target} ?
 		"$editor->{target}/$editor->{actual_target}" : $editor->{target};
@@ -348,7 +351,7 @@ sub mirror {
 	$ra->do_diff ($rev, undef, 1, 1,
 		      $editor->{anchor} || $self->{source}, $editor) ;
 
-=comment TODO - discover copy history in log output
+=for comment TODO - discover copy history in log output
 
     my @visited;
     while (my ($path, $info) = each %$paths) {
@@ -366,6 +369,35 @@ sub mirror {
     $editor->{target} ||= '';
     $reporter->set_path ('', $start, 0);
     $reporter->finish_report ();
+}
+
+sub mergeback {
+    my ($self, $fromrev, $path, $rev) = @_;
+
+    # verify $path is copied from $self->{target_path}
+
+    # get ra commit editor for $self->{source}
+    my $ra = SVN::Ra->new(url => $self->{source},
+			  auth => $self->{auth},
+			  pool => $self->{pool},
+			  config => $self->{config},
+			  callback => 'MyCallbacks');
+
+    # concat batch merge?
+    my $msg = $self->{fs}->revision_prop ($rev, 'svn:log');
+    $msg .= "\n\nmerged from rev $rev of repository ".
+	SVN::Fs::get_uuid($self->{fs});
+
+    my $editor = SVN::Delta::Editor->
+	new ($ra->get_commit_editor ($msg,
+				     sub {warn "committed via RA"}));
+    # dir_delta ($path, $fromrev, $rev) for commit_editor
+
+    SVN::Repos::dir_delta($self->{fs}->revision_root ($fromrev), $path, undef,
+			  $self->{fs}->revision_root ($rev), $path,
+			  $editor,
+			  1, 1, 0, 1
+			 );
 }
 
 sub run {
@@ -400,7 +432,7 @@ sub run {
 		  });
 }
 
-=comment
+=for comment
 
 sub list {
     my $self = shift;
@@ -433,3 +465,5 @@ under the same terms as Perl itself.
 See L<http://www.perl.com/perl/misc/Artistic.html>
 
 =cut
+
+1;
