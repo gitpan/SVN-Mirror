@@ -161,7 +161,7 @@ sub get_wc_prop {
 }
 
 package SVN::Mirror;
-our $VERSION = '0.21';
+our $VERSION = '0.22';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -251,6 +251,16 @@ sub init {
 
     die "svm not configured on $self->{target_path}"
 	if $self->{get_source};
+
+    my $ra = SVN::Ra->new(url => $self->{source},
+			  auth => $self->{auth},
+			  pool => $self->{pool},
+			  config => $self->{config},
+			  callback => 'MyCallbacks');
+
+    my $uuid = $ra->get_uuid ();
+
+    $txnroot->change_node_prop ($self->{target_path}, 'svm:uuid', $uuid);
 
     SVN::Fs::change_node_prop ($txnroot, $self->{target_path},
 			       'svm:source', "$self->{source}");
@@ -376,8 +386,10 @@ sub get_merge_back_editor {
 			  pool => $self->{pool},
 			  config => $self->{config},
 			  callback => 'MyCallbacks');
+    my $youngest_rev = $ra->get_latest_revnum;
 
-    return SVN::Delta::Editor->new ($ra->get_commit_editor ($msg, $committed));
+    return ($youngest_rev,
+	    SVN::Delta::Editor->new ($ra->get_commit_editor ($msg, $committed)));
 }
 
 sub mergeback {

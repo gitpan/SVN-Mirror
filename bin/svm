@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 use strict;
-use SVN::Core '0.28';
+use SVN::Core '0.32';
 use SVN::Mirror;
 
 =head1 NAME
@@ -49,7 +49,7 @@ how it is initialized.
 
 my $repospath = $ENV{SVMREPOS} || $ENV{HOME}.'/svn/svm';
 my $auth = SVN::Core::auth_open ([SVN::Client::get_simple_provider,
-				  SVN::Client::get_ssl_server_file_provider,
+				  SVN::Client::get_ssl_server_trust_file_provider,
 				  SVN::Client::get_username_provider]);
 
 sub help {
