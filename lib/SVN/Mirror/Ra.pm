@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.55';
+$VERSION = '0.57';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -324,6 +324,7 @@ sub committed {
 	if $self->{rev_incomplete};
     $self->{headrev} = $rev;
 
+    $self->unlock ('mirror');
     print "Committed revision $rev from revision $sourcerev.\n";
 }
 
@@ -409,6 +410,7 @@ The structure of mod_lists:
     $editor->{mod_lists} = {};
     foreach ( keys %$paths ) {
         my $item = $paths->{$_};
+	s/\n/ /g; # XXX: strange edge case
         my $href;
 
         my $svn_lpath = my $local_path = $_;
@@ -456,7 +458,11 @@ The structure of mod_lists:
         @$href{qw/local_source_path source_node_kind/} =
             ( $src_lpath, $source_node_kind );
 
-        if ( /^\Q$self->{rsource_path}\E/ ) {
+	# XXX: do we still need the reanchor case?
+	# Also, the loop should not reached here if changed path is
+	# not interesting to us, skip them at the beginning the the loop
+        if ( $_ eq $self->{rsource_path} or
+	     index ("$_/", "$self->{rsource_path}/") == 0 ) {
             $editor->{mod_lists}{$svn_lpath} = $href;
         } elsif ($href->{action} eq 'A' &&
 		 index ($self->{rsource_path}, "$_/") == 0) {
@@ -487,7 +493,8 @@ The structure of mod_lists:
             my $start = $fromrev || ($self->{skip_to} ? $fromrev : $rev-1);
             my $reporter =
                 $ra->do_update ($rev, $editor->{target} || '', 1, $editor);
-            $reporter->set_path ('', $start, 0);
+	    my @lock = $SVN::Core::VERSION ge '1.2.0' ? (undef) : ();
+            $reporter->set_path ('', $start, @lock, 0);
 
             $reporter->finish_report ();
         } else {
@@ -536,8 +543,10 @@ sub get_merge_back_editor {
 	($self->_new_ra ( url => "$self->{source}$path"), "$self->{source}$path" );
 
     $self->{commit_ra} = $self->{cached_ra};
+    $self->load_fromrev;
+    my @lock = $SVN::Core::VERSION ge '1.2.0' ? (undef, 0) : ();
     return ($self->{fromrev}, SVN::Delta::Editor->new
-	    ($self->{cached_ra}->get_commit_editor ($msg, $committed)));
+	    ($self->{cached_ra}->get_commit_editor ($msg, $committed, @lock)));
 }
 
 sub switch {
@@ -587,6 +596,11 @@ sub run {
     my $self = shift;
     my $ra = $self->_new_ra;
     my $latestrev = $self->get_latest_rev ($ra);
+
+    $self->lock ('sync');
+    $self->load_fromrev;
+    $self->{headrev} = $self->{fromrev} ?
+	$self->find_local_rev ($self->{fromrev}) : $self->{fs}->youngest_rev;
     if ($self->{skip_to} && $self->{skip_to} =~ m/^HEAD(?:-(\d+))?/) {
 	$self->{skip_to} = $latestrev - ($1 || 0);
     }
@@ -597,11 +611,11 @@ sub run {
 
     print "Syncing $self->{source}".($self->_relayed ? " via $self->{rsource}\n" : "\n");
 
-    return unless $endrev == -1 || $startrev <= $endrev;
+    $self->unlock ('sync'), return
+	unless $endrev == -1 || $startrev <= $endrev;
 
     print "Retrieving log information from $startrev to $endrev\n";
 
-    $self->{headrev} = $self->{fs}->youngest_rev;
     eval {
     $ra->get_log ([''], $startrev, $endrev,
 		  ($SVN::Core::VERSION ge '1.2.0') ? (0) : (),
@@ -627,6 +641,8 @@ sub run {
 
     delete $self->{cached_ra};
     delete $self->{cached_ra_url};
+
+    $self->unlock ('sync');
 
     return unless $@;
     if ($@ =~ /no item/) {
@@ -952,7 +968,6 @@ sub add_directory {
              && !$action) {
         if ($self->_contains_mod_in_path ($path)) {
             $is_copy = 1;
-            splice @_, 0, 2, $self->{mirror}{headrev};
             $method = 'open_directory';
             $self->_enter_new_copied_path ();
         } else {
@@ -981,7 +996,6 @@ sub add_directory {
             }
         } elsif ($action eq 'M') {
             # 1d.
-            splice @_, 0, 2, $self->{mirror}{headrev};
             $method = 'open_directory';
 
             $self->_enter_new_copied_path ()
@@ -1006,17 +1020,16 @@ sub add_directory {
         die "Oh no, no more exceptions!  add_directory() failed.";
     }
 
-    if ($path eq $self->{target}) {
-        splice @_, 0, 2, $self->{mirror}{headrev}
-            if $method ne "open_directory";
-        $method = "open_directory";
-    }
+    $method = "open_directory" if $path eq $self->{target};
 
     push @{$self->{visited_paths}}, $path;
     my $tran_path = $self->_translate_rel_path ($path);
 
     $method = 'open_directory'
         if $tran_path eq $self->{mirror}{target_path};
+
+    splice @_, 0, 2, $self->{mirror}{headrev}
+	if $method eq "open_directory";
 
     my $dir_baton;
     $method = "SUPER::$method";
@@ -1165,6 +1178,7 @@ sub close_edit {
     local $SIG{INT} = 'IGNORE';
     local $SIG{TERM} = 'IGNORE';
 
+    $self->{mirror}->lock ('mirror');
     # XXX - On Win32+fsfs, ->close_edit works but raises exceptions
     local $@; eval { $self->SUPER::close_edit ($pool) };
 }

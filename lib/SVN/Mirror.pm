@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.56';
+our $VERSION = '0.57';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -160,8 +160,12 @@ sub is_mirrored {
 
 sub load_fromrev {
     my ($self) = @_;
-    my $changed = $self->{root}->node_created_rev ($self->{target_path});
-    my $prop = $self->{fs}->revision_prop ($changed, 'svm:headrev');
+    $self->lock('mirror');
+    my $fs = $self->{fs};
+    my $root = $fs->revision_root ($fs->youngest_rev);
+    my $changed = $root->node_created_rev ($self->{target_path});
+    $self->unlock('mirror');
+    my $prop = $fs->revision_prop ($changed, 'svm:headrev');
     return unless $prop;
     my %revs = map {split (':', $_)} $prop =~ m/^.*$/mg;
     my $uuid = $self->{rsource_uuid} || $self->{source_uuid};
@@ -441,6 +445,62 @@ sub commit_txn {
     }
 
     return $rev;
+}
+
+use Sys::Hostname;
+
+sub _lock_token {
+    my $token = $_[0]->{target_path};
+    $token =~ s/_/__/g;
+    $token =~ s{/}{_}g;
+    return "svm:lock:$_[1]:$token";
+}
+
+sub lock {
+    my ($self, $what) = @_;
+    my $fs = $self->{fs};
+    my $token = $self->_lock_token ($what);
+    my $content = hostname.':'.$$;
+    my $where = join(' ', (caller(0))[0..2]);
+    die $where."\n".$self->{locked}{$what} if exists $self->{locked}{$what};
+    # This is not good enough but race condition should result in failed sync
+    # without corrupting repository.
+    LOCKED:
+    {
+	while (1) {
+	    my $who = $fs->revision_prop (0, $token) or last LOCKED;
+	    if ($who eq $content) {
+		$self->unlock ($what);
+		Carp::confess "recursive lock? $what $where $self->{locked}{$what}";
+	    }
+	    if ($self->{lock_message}) {
+		$self->{lock_message}->($self, $what, $who);
+	    }
+	    else {
+		print "Waiting for $what lock on $self->{target_path}: $who.\n";
+	    }
+	    sleep 1;
+	}
+    }
+    $fs->change_rev_prop (0, $token, $content);
+    $self->{locked}{$what} = $where;
+}
+
+sub unlock {
+    my ($self, $what) = @_;
+    if ($what eq 'force') {
+	for (keys %{$self->{fs}->revision_proplist(0)}) {
+	    $self->{fs}->change_rev_prop (0, $_, undef);
+	}
+	delete $self->{locked};
+	return;
+    }
+
+    my $token = $self->_lock_token ($what);
+    if ($self->{locked}{$what}) {
+	$self->{fs}->change_rev_prop (0, $token, undef);
+	delete $self->{locked}{$what};
+    }
 }
 
 =head1 AUTHORS

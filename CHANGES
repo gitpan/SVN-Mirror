@@ -1,3 +1,21 @@
+[Changes for 0.57 - Mar 29, 2005]
+
+* API catchup for latest svn-trunk.
+
+* Fix a bug that non-interesting changed paths are not properly
+  filtered.
+
+* Proper locking for concurrent mirror object load and sync.
+
+[Changes for 0.55 - Mar 2, 2005]
+
+* Resolve local rev properly for relayed mirror where the target
+  revision number is larger than the one on the relayed server.
+
+* Tell the user to install VCP instead of confusing "schema not handled".
+
+* Workaround ra_svn 1.2 vs svnserve 1.1 log limit problem.
+
 [Changes for 0.55 - Feb 1, 2005]
 
 * Partially support remote copies that cross local mirror anchors
