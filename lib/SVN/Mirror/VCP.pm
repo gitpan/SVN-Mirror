@@ -54,12 +54,9 @@ sub map_filter_cvs {
     my $self = shift;
     require VCP::Filter::map;
     if ($self->{branch_only}) {
-	my $trunk = $self->{source_trunk};
-	$trunk .= '/(...)' if $trunk;
+	my @branches = map {$_ eq 'trunk' ? '' : $_ } split (',', $self->{branch_only});
 	return VCP::Filter::map->new
-	    ("", [ ($self->{branch_only} eq 'trunk' ?
-		    ('(...)<>', '$1<>') :
-		    ("(...)<$self->{branch_only}>", '$1<>')),
+	    ("", [ (map { ("(...)<$_>", "\$1<$_>") } @branches),
 		   '...', '<<delete>>' ]);
     }
 }
@@ -94,9 +91,10 @@ sub run {
     my $source = $self->{vcp_source}->new
 	($self->{source}, ['--continue', '--db-dir', $dbdir, '--repo-id', $self->{source_uuid}]);
 
+    my $layout = !$self->{branch_only} || index ($self->{branch_only}, ',') >= 0;
     my $dest = VCP::Dest::svk->new ("svk:$self->{repospath}:$self->{target_path}",
 				    ['--db-dir', $dbdir, '--repo-id', 'svk',
-				     $self->{branch_only} ? '--nolayout' : ()]);
+				     $layout ? () : '--nolayout']);
     $dest->{SVK_REPOS} = $self->{repos};
     $dest->{SVK_REPOSPATH} = $self->{repospath};
     $dest->{SVK_COMMIT_CALLBACK} = sub {

@@ -1,3 +1,14 @@
+[Changes for 0.44 - Sep 4, 2004]
+
+* Support selective branches mapping with --branch-only=trunk,RELENG_5.
+  (cvs only)
+
+* Don't unconditionally load svn config.
+
+* Don't create dummy txn on init even just for loading.
+
+* Make MirrorEditor::delete_entry use local revisions instead of remote ones.
+
 [Changes for 0.43 - Aug 21, 2004]
 
 * Don't suggest vcp by default since it's not on CPAN these days.

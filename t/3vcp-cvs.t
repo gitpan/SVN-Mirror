@@ -6,7 +6,7 @@ use File::Path;
 use File::Spec;
 
 if( eval "use VCP::Dest::svk; 1" ) {
-    plan tests => 4;
+    plan tests => 5;
 }
 else {
     plan skip_all => 'VCP::Dest::svk not installed';
@@ -43,3 +43,10 @@ $m->init;
 $m->run;
 ok(1);
 # check '/cvs-all/trunk/more'
+
+$m = SVN::Mirror->new (target_path => 'cvs-partial', repospath => $abs_path,
+		       options => ['--branch-only=trunk,somebranch,anotherbranch'],
+		       source => "cvs:$cvsroot:kuso/...");
+$m->init;
+$m->run;
+ok(1);

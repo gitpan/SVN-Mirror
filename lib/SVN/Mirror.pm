@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.43';
+our $VERSION = '0.44';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -229,16 +229,14 @@ sub init {
     my $pool = SVN::Pool->new_default ($self->{pool});
     my $headrev = $self->{headrev} = $self->{fs}->youngest_rev;
     $self->{root} = $self->{fs}->revision_root ($headrev);
-
-    my $txn = $self->{fs}->begin_txn ($headrev);
-    my $txnroot = $txn->root;
-    my $new = $self->mkpdir ($txnroot, $self->{target_path});
-
-    $self->{config} = SVN::Core::config_get_config(undef, $self->{pool});
-
+    my $new = ($self->{root}->check_path ($self->{target_path}) == $SVN::Node::none);
     $self->pre_init ($new);
 
     if ($new) {
+	my $txn = $self->{fs}->begin_txn ($headrev);
+	my $txnroot = $txn->root;
+	$self->mkpdir ($txnroot, $self->{target_path});
+
 	my $source = $self->init_state ($txn);
 	my $mirrors = $txnroot->node_prop ('/', 'svm:mirror') || '';
 	$txnroot->change_node_prop ('/', 'svm:mirror', "$mirrors$self->{target_path}\n");
@@ -254,7 +252,6 @@ sub init {
     }
     else {
 	$self->load_state ();
-	$txn->abort;
     }
 }
 

@@ -158,6 +158,7 @@ sub load_state {
 
 sub _new_ra {
     my ($self, %arg) = @_;
+    $self->{config} ||= SVN::Core::config_get_config (undef, $self->{pool});
     SVN::Ra->new( url => $self->{rsource},
 		  auth => $self->{auth},
 		  pool => SVN::Pool->new,
@@ -928,7 +929,8 @@ sub delete_entry {
         $path = "$target_path/$path";
     }
 
-    $self->SUPER::delete_entry ($path, $rev, $pb, $pool);
+    $self->SUPER::delete_entry ($path, $self->{mirror}{headrev},
+				$pb, $pool);
 }
 
 sub close_edit {
