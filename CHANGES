@@ -1,3 +1,9 @@
+[Changes for 0.35 - Apr 26, 2004]
+
+* Fix a bug triggered by remote rename. [Plasmaball]
+
+* Add VCP support.
+
 [Changes for 0.30 - Mar 28, 2004 - YAPC::Taipei::2004 Release Party]
 
 * Fix a problem caused by the ra session doing log doens't load

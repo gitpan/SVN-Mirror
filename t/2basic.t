@@ -1,11 +1,11 @@
 #!/usr/bin/perl
-use Test::More qw(no_plan);
+use Test::More tests => 4;
 use SVN::Mirror;
 use File::Path;
 use File::Spec;
 use strict;
 
-exit 0 unless -x "/usr/local/bin/svnadmin";
+exit 0 unless -x '/usr/local/bin/svnadmin' || -x '/usr/bin/svnadmin';
 
 my $repospath = "t/repos";
 
@@ -20,6 +20,13 @@ my $abs_path = File::Spec->rel2abs( $repospath ) ;
 
 my $m = SVN::Mirror->new(target_path => 'fullcopy', target => $abs_path,
 			 source => "file://$abs_path/source", target_create => 1);
+is (ref $m, 'SVN::Mirror::Ra');
+$m->init ();
+
+$m = SVN::Mirror->new (target_path => 'fullcopy', target => $abs_path,
+		       get_source => 1,);
+
+is ($m->{source}, "file://$abs_path/source");
 $m->init ();
 $m->run ();
 
@@ -31,7 +38,3 @@ $m->init ();
 $m->run ();
 
 ok(1);
-
-END {
-print `svn log -v file://$abs_path`;
-}

@@ -1,12 +1,13 @@
-# http://module-build.sourceforge.net/META-spec.html
-#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
-name:         SVN-Mirror
-version:      0.31
-version_from: Mirror.pm
-installdirs:  site
-requires:
-    SVN::Core:                     0.33.0
-    URI::Escape:                   0
-
+name: SVN-Mirror
+version: 0.35
+abstract: Mirror remote repositories to local subversion repository
+author: Chia-liang Kao <clkao@clkao.org>
+license: perl
 distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.21
+requires:
+  SVN::Core: 0.33.0
+  URI::Escape: 0
+no_index:
+  directory:
+    - inc
+generated_by: Module::Install version 0.33

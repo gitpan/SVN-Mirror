@@ -1,0 +1,69 @@
+This file contains message digests of all files listed in MANIFEST,
+signed via the Module::Signature module, version 0.38.
+
+To verify the content in this distribution, first make sure you have
+Module::Signature installed, then type:
+
+    % cpansign -v
+
+It would check each file's integrity, as well as the signature's
+validity.  If "==> Signature verified OK! <==" is not displayed,
+the distribution may already have been compromised, and you should
+not run its Makefile.PL or Build.PL.
+
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA1
+
+SHA1 7d07612176a9237882e18384b40f2e9e80b1c025 CHANGES
+SHA1 2ee0d9ee1eabb21fea9b800fa1f885e4db885601 MANIFEST
+SHA1 6606732567be70e8703bb4e4b7cc2da4e92fa5ad META.yml
+SHA1 759ec5900c7cac37a9d0306e2f93a6800dc61cd1 Makefile.PL
+SHA1 d27179ee97763fdc64b12ef6921c5f0d03b5cabd README
+SHA1 b3c65a8b64c8504af3121a96954b0ee171990941 TODO
+SHA1 9ce8fc0f489f288c53965dd21de243d5b36d4841 bin/svm
+SHA1 516611014c1018d65b0b7188b77d216a7be44238 inc/ExtUtils/AutoInstall.pm
+SHA1 3f5fd5cb6904e62e2b6bf159ebffaf0cb72e80d5 inc/Module/Install.pm
+SHA1 e69e76e2d33f34a90382c6ab74ebf9cf2dc858e5 inc/Module/Install/AutoInstall.pm
+SHA1 adfc45c82642d3726cc2c871c49062c000ccb0e4 inc/Module/Install/Base.pm
+SHA1 ba881ecfb8e8b9c4ebbc409b8025cac973511197 inc/Module/Install/Can.pm
+SHA1 c03e641fcc136de2fbdd62ce4e82e2dfa8410962 inc/Module/Install/Fetch.pm
+SHA1 8119fb04681f0085c6b466f592adc8d408861610 inc/Module/Install/Include.pm
+SHA1 876226cc896a285b2409db88d9033071c68cec50 inc/Module/Install/Makefile.pm
+SHA1 e5ab6153407ff571eefbb366d8cf18671c0974e4 inc/Module/Install/Metadata.pm
+SHA1 04d629dd71239bb9c4d79415fd7c932ce5be1bf6 inc/Module/Install/Scripts.pm
+SHA1 1915204e46fcee6faf528f8d86aec215e332cc7b inc/Module/Install/Win32.pm
+SHA1 0c911bbda0f5e2cd401249412231a3be3548fe20 inc/Module/Install/WriteAll.pm
+SHA1 248989df8dfc489a861645892360694769926c30 lib/SVN/Mirror.pm
+SHA1 630c527beaf1d9a268fe4cdca65c716cd0b8cee6 lib/SVN/Mirror/Ra.pm
+SHA1 33b1526794bf4df1bcedc95334a01ff46db13d3c lib/SVN/Mirror/VCP.pm
+SHA1 2e08efd0d0bdd8ed4003dd9ed1682c1aef0fe0fb lib/VCP/Dest/svk.pm
+SHA1 0e2288e4ba90514fdb4838d4326d5af191422982 t/1use.t
+SHA1 c9a95b20f151769333266b85a73c9fe349abdfc8 t/2basic.t
+SHA1 3200c16635cb00c3aa34fafad10ffe6b7fccf992 t/3vcp-cvs.t
+SHA1 5b9ef09a5e9a3cee67ec36beff2d8d615c4f06fd t/4vcp-p4.t
+SHA1 ceac0d43bb5fcc858fb433856d0b05eae7bf9f35 t/cvs-test-data/CVSROOT/README
+SHA1 ebf8401475314cdb855e901e28cf13ca8bdbfe1f t/cvs-test-data/CVSROOT/val-tags
+SHA1 7bb8ca8923245ef572a5c2f1c355bb2b977d97a5 t/cvs-test-data/kuso/Attic/blah.pm,v
+SHA1 cb8e30fd37db0b9756e27b0aaa873387d1ff18ec t/cvs-test-data/kuso/Attic/moreonbranch,v
+SHA1 afdec8be1289abae0fb2556bf9dba84f9cfc4a3f t/cvs-test-data/kuso/Attic/two_on_branch,v
+SHA1 a5c626e0fe3da90226b601bfa13f8191808f1a04 t/cvs-test-data/kuso/addontrunk,v
+SHA1 ce56af59d52a4a75e7c753d3a095a3b9e8609ca2 t/cvs-test-data/kuso/blah/Attic/a,v
+SHA1 bbbc6994fa0e25e4c9b8617d9ed929fa2a746fa0 t/cvs-test-data/kuso/blah/Attic/b,v
+SHA1 717e656595769fe8d1b5c5687eca46b03214fa8e t/cvs-test-data/kuso/blah/Attic/c,v
+SHA1 a1fe2803dc0b977fd9854016b9b1941f7c80fdf4 t/cvs-test-data/kuso/blah/Attic/d,v
+SHA1 649b970ac8ae9022c27e1eabe699e44d00472c62 t/cvs-test-data/kuso/blah/Attic/e,v
+SHA1 6d1a54b6015f2f417b221a551198117a479966ac t/cvs-test-data/kuso/blah/Attic/f,v
+SHA1 dc6e9be6047abe8a71a223a59b8bb1e3f397fc56 t/cvs-test-data/kuso/blah/Attic/g,v
+SHA1 f56063180842f02122501531c4450dbe908068c4 t/cvs-test-data/kuso/blah/Attic/more,v
+SHA1 513a6984705f54a3d3583d431b82b316258b880a t/cvs-test-data/kuso/blah/Attic/more2,v
+SHA1 ba58dcd964b6c209e6deb66187b7bd0580ac701e t/cvs-test-data/kuso/blah/Attic/zzzz,v
+SHA1 cb50adce4bd924942c1c0fea1466f52524bedd6d t/cvs-test-data/kuso/oldfile,v
+SHA1 03dcc4ebab3f6c864d588dd1301ec998eb337a39 t/cvs-test-data/kuso/staticfile,v
+SHA1 5e3dfa993bb5089b418c5e8ffe79cacb93de099f t/test_repo.dump
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.2.4 (FreeBSD)
+
+iD8DBQFAjT3Ck1XldlEkA5YRAoVaAJ9gnq0CERhfiomwJKTiEip/l1om6wCbB6tt
+p/ktTQH4c36Iw8m4Ayx62UA=
+=WM5C
+-----END PGP SIGNATURE-----
