@@ -1,6 +1,6 @@
 package SVN::Mirror::VCP;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.49';
+$VERSION = '0.50';
 use strict;
 use File::Spec;
 
@@ -27,9 +27,15 @@ use Getopt::Long qw(:config no_ignore_case);
 sub pre_init {
     my ($self, $new) = @_;
     $self->{options} ||= [];
-    ($self->{source}, @{$self->{options}}) = (
-        split (/ /, $self->{source}), @{$self->{options}},
-    ) unless $new;
+    if ($new) {
+	# append the annoying literal /... if there's none.
+	$self->{source} =~ s{(?:/?(?:\.\.\.)?)$}{/...};
+    }
+    else {
+	($self->{source}, @{$self->{options}}) =
+	    (split (/ /, $self->{source}), @{$self->{options}});
+    }
+
     local @ARGV = @{$self->{options}};
     die unless GetOptions ('source-trunk=s' => \$self->{source_trunk},
 			   'source-branches=s' => \$self->{source_branches},

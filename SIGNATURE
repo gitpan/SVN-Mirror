@@ -14,28 +14,28 @@ not run its Makefile.PL or Build.PL.
 -----BEGIN PGP SIGNED MESSAGE-----
 Hash: SHA1
 
-SHA1 320c33b77d7cf2aa0c6af1610baa9e957f9757d5 CHANGES
+SHA1 016e0723e9823804a16252e175a335fffe697737 CHANGES
 SHA1 07936d00e1c61716cd7db706f6c02b2ef25bab4e MANIFEST
-SHA1 0cbebe519ec11edcd5724f6e831e8ea66505ad30 META.yml
+SHA1 411c53695624ef1a47f26fa9666e3d57dbb8e6e6 META.yml
 SHA1 9e4cd8eca6a77c9087afde3717fce3b91a2edc77 Makefile.PL
 SHA1 b39cfebf1c1d8e353e5c0a2628b94bd91d96ad66 README
 SHA1 76b454f5cd08b3d7e032640e071d4562ee58cf46 TODO
 SHA1 9ce8fc0f489f288c53965dd21de243d5b36d4841 bin/svm
-SHA1 7b947a1d1e016bc4acb990f99191d1eb6d347ae3 inc/ExtUtils/AutoInstall.pm
-SHA1 02597776ad22aacd2c8e189594fcbf701390b606 inc/Module/Install.pm
-SHA1 53422ed14b41bbc9af3ac14a26ced3ed21dee0bc inc/Module/Install/AutoInstall.pm
-SHA1 7ca8b8f54287c2b5af8062fc9f349275a07e06f3 inc/Module/Install/Base.pm
-SHA1 b6af22816210f8eaab4c2c616e05a8892b2fcfd0 inc/Module/Install/Can.pm
-SHA1 33659c004518e95afb6ffafad41e84f2a6268412 inc/Module/Install/Fetch.pm
-SHA1 b42b4d3a89848325ae29422c72638e1571e7af1b inc/Module/Install/Include.pm
-SHA1 c4ed10cd20914c04f3fff3f8aaf8943372cec114 inc/Module/Install/Makefile.pm
-SHA1 ccf9b6267b5c9e7b35ef129f7e974255955c8867 inc/Module/Install/Metadata.pm
-SHA1 60d13a5654850bf449ebcab71a21558e6310826e inc/Module/Install/Scripts.pm
-SHA1 1288f4c4e4ba88e19194d7952eacbd6be2a5b916 inc/Module/Install/Win32.pm
-SHA1 1022a7ab797fc0081ea947f102650362ad925d7a inc/Module/Install/WriteAll.pm
-SHA1 792ba565b99a439c9f5db417cf084c9b712808e4 lib/SVN/Mirror.pm
-SHA1 22097e29d751d06aa762a1d36fa10c49faefcd44 lib/SVN/Mirror/Ra.pm
-SHA1 9391788f651f54672a4a497dd02b5b52ae7076b2 lib/SVN/Mirror/VCP.pm
+SHA1 7338f67a9d2ef18cfa49a86cc1cdd9b8e1bf2ea4 inc/ExtUtils/AutoInstall.pm
+SHA1 06d883487127fa0026311904e7c4867e850c505c inc/Module/Install.pm
+SHA1 25c1920fccb1077b2e11ed0f18df50089d2beb5d inc/Module/Install/AutoInstall.pm
+SHA1 2771d5c5033e94c4789c66a0aad4e21c62985ce9 inc/Module/Install/Base.pm
+SHA1 b5e2d5fc07b92d042c97631d2b00f61f974fc164 inc/Module/Install/Can.pm
+SHA1 c3747aa4bd8faa530c974b78f729c67f15c6f928 inc/Module/Install/Fetch.pm
+SHA1 c6d2a330e2a8cb3a1db7bfc4236fea9a8aafe297 inc/Module/Install/Include.pm
+SHA1 d8bc0d6e0a82d2b7533bdd3de467593094cc8b2c inc/Module/Install/Makefile.pm
+SHA1 6fca1d05c6b9a8f10865de5be4fefb9bfa7a52e9 inc/Module/Install/Metadata.pm
+SHA1 2e6f5004ac895a26c41f043bf8fa5efb4f5b21c4 inc/Module/Install/Scripts.pm
+SHA1 6b051a6d3ed824df40343a7ff09b66282e1783c3 inc/Module/Install/Win32.pm
+SHA1 77f82ce7c623e05304ac9aae05bcd1a5558fadbb inc/Module/Install/WriteAll.pm
+SHA1 e4eb07b39978e3415b3b5d278ca9a214530db31d lib/SVN/Mirror.pm
+SHA1 2c5c44bb3da64b788ba7507ff884bb49d36e7189 lib/SVN/Mirror/Ra.pm
+SHA1 31fc19f899164b467869bd5ddd46ffc6d94d6873 lib/SVN/Mirror/VCP.pm
 SHA1 0e2288e4ba90514fdb4838d4326d5af191422982 t/1use.t
 SHA1 eabb122b5ef3f5c8aec17e5e40cf72356747b68d t/2basic.t
 SHA1 0f24e0ed704f49a59f34036ac21dc8acc4fa55a4 t/3vcp-cvs.t
@@ -67,7 +67,7 @@ SHA1 5e3dfa993bb5089b418c5e8ffe79cacb93de099f t/test_repo.dump
 -----BEGIN PGP SIGNATURE-----
 Version: GnuPG v1.2.6 (FreeBSD)
 
-iD8DBQFBcdkkk1XldlEkA5YRAg7lAJ43F7EEb4is4K7q9SMc6EwQi7RQiwCfXMuu
-07YGAS2jn3oDcH1gS5YiYa4=
-=nh6a
+iD8DBQFBkig3k1XldlEkA5YRAnHLAJ0eLwgzVy82LBKB2dAFeF1kMEHxhgCeLB+l
+DbVcz90Yeomnr12fqy+8p2s=
+=xN49
 -----END PGP SIGNATURE-----

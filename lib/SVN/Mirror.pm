@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.49';
+our $VERSION = '0.50';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -185,12 +185,18 @@ sub find_local_rev {
     # revision.  An empty revision could only be found based on root
     # path.  For real example, see r2770 to r2769 in
     # http://svn.collab.net/repos/svn.
-    my $hist = $fs->revision_root ($fs->youngest_rev)->
-	node_history ($self->{target_path});
 
-    while ($hist = $hist->prev (0)) {
-	my $rev = ($hist->location)[1];
-	my $prop = $self->{fs}->revision_prop ($rev, 'svm:headrev');
+    my $old_pool = SVN::Pool->new;
+    my $new_pool = SVN::Pool->new;
+
+    my $hist = $fs->revision_root ($fs->youngest_rev)->
+	node_history ($self->{target_path}, $old_pool);
+
+    while ($hist = $hist->prev (0, $new_pool)) {
+	my $rev = ($hist->location ($new_pool))[1];
+	my $prop = $self->{fs}->revision_prop ($rev, 'svm:headrev', $old_pool) or next;
+        $old_pool->clear;
+        ($old_pool, $new_pool) = ($new_pool, $old_pool);
 	my ($lrev) = $prop =~ m/^\Q$uuid\E:(\d+)$/m;
         next unless defined $lrev;
 	$cache->{$lrev} = $rev;

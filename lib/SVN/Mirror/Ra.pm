@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.49';
+$VERSION = '0.50';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -155,8 +155,9 @@ sub load_state {
 sub _new_ra {
     my ($self, %arg) = @_;
     $self->{config} ||= SVN::Core::config_get_config (undef, $self->{pool});
+    $self->{auth} ||= $self->_new_auth;
     SVN::Ra->new( url => $self->{rsource},
-		  auth => $self->_new_auth,
+		  auth => $self->{auth},
 		  config => $self->{config},
 		  %arg);
 }
@@ -307,10 +308,7 @@ sub _revmap {
 }
 
 sub committed {
-    my ($self, $revmap, $date, $sourcerev, $rev, undef, undef, $pool) = @_;
-    local $SIG{INT} = 'IGNORE';
-    local $SIG{TERM} = 'IGNORE';
-    my $cpool = SVN::Pool->new_default ($pool);
+    my ($self, $revmap, $date, $sourcerev, $rev) = @_;
     $self->{fs}->change_rev_prop($rev, 'svn:date', $date);
     # sync remote headrev too
     $self->{fs}->change_rev_prop($rev, 'svm:headrev', $revmap."$self->{rsource_uuid}:$sourcerev\n");
@@ -498,8 +496,9 @@ sub get_merge_back_editor {
     @{$self}{qw/cached_ra cached_ra_url/} =
 	($self->_new_ra ( url => "$self->{source}$path"), "$self->{source}$path" );
 
+    $self->{commit_ra} = $self->{cached_ra};
     return ($self->{fromrev}, SVN::Delta::Editor->new
-	    ($self->{cached_ra}->get_commit_editor ($msg, $committed)));
+	    ($self->{cached_ra}->get_commit_editor ($msg, $committed, $self->{pool})));
 }
 
 sub switch {
@@ -565,9 +564,6 @@ sub run {
 }
 
 sub DESTROY {
-    # bizzare pool reference
-    undef $_[0]->{cached_ra}{callback};
-    undef $_[0]->{cached_ra};
 }
 
 package SVN::Mirror::Ra::MirrorEditor;
@@ -1091,7 +1087,11 @@ sub close_edit {
     }
 
     $self->SUPER::close_directory ($self->{root});
-    $self->SUPER::close_edit (@_);
+    local $SIG{INT} = 'IGNORE';
+    local $SIG{TERM} = 'IGNORE';
+
+    # XXX - On Win32+fsfs, ->close_edit works but raises exceptions
+    local $@; eval { $self->SUPER::close_edit (@_) };
 }
 
 1;
