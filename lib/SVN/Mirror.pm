@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.44';
+our $VERSION = '0.45';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -45,17 +45,16 @@ use URI::Escape;
 use SVN::Simple::Edit;
 
 use SVN::Mirror::Ra;
-my $has_vcp;
-
-eval 'use SVN::Mirror::VCP; 1' and $has_vcp++;
 
 sub _schema_class {
     my ($url) = @_;
     die "no source specificed" unless $url;
     return 'SVN::Mirror::Ra' if $url =~ m/^(https?|file|svn(\+.*?)?):/;
-    return 'SVN::Mirror::VCP' if $has_vcp && $url =~ m/^(p4|cvs)/;
+    return 'SVN::Mirror::VCP' if $url =~ m/^(p4|cvs)/ and eval {
+	require SVN::Mirror::VCP; 1
+    };
 
-    die "schema for $url not handled";
+    die "schema for $url not handled\n";
 }
 
 sub new {
@@ -105,12 +104,14 @@ sub has_local {
     my ($repos, $spec) = @_;
     my $fs = $repos->fs;
     my $root = $fs->revision_root ($fs->youngest_rev);
-    my %mirrored = map {join(':', $root->node_prop ($_, 'svm:uuid'),
-			 $root->node_prop ($_, 'svm:source') =~ m/\!(.*)$/)
-		    => $_} list_mirror ($repos);
+    my %mirrored = map { my $path = $root->node_prop ($_, 'svm:source');
+			 # XXX: per-backend path extraction method
+			 $path =~ s/^.*\!// or ($path) = $path =~ m/^.+:([^:\s]+)/;
+			 ( join(':', $root->node_prop ($_, 'svm:uuid'), $path) => $_) }
+	list_mirror ($repos);
     # XXX: gah!
     my ($specanchor) =
-	map { (substr ($_, -1, 1) eq '/' ?
+	map { (m|[/:]$| ?
 	       substr ($spec, 0, length ($_)) eq $_
 	       : substr ("$spec/", 0, length($_)+1) eq "$_/")
 		  ? $_ : () } keys %mirrored;
@@ -155,6 +156,17 @@ sub is_mirrored {
     eval { $m->init };
     undef $@, return if $@;
     return wantarray ? ($m, $path) : $m;
+}
+
+sub load_fromrev {
+    my ($self) = @_;
+    my $changed = $self->{root}->node_created_rev ($self->{target_path});
+    my $prop = $self->{fs}->revision_prop ($changed, 'svm:headrev');
+    return unless $prop;
+    my %revs = map {split (':', $_)} $prop =~ m/^.*$/mg;
+    my $uuid = $self->{rsource_uuid} || $self->{source_uuid};
+    return unless exists $revs{$uuid};
+    $self->{fromrev} = $revs{$uuid};
 }
 
 my %CACHE;
@@ -278,12 +290,12 @@ sub mergeback {
 
 sub mkpdir {
     my ($self, $root, $dir) = @_;
-    my @dirs = File::Spec->splitdir($self->{target_path});
+    my @dirs = File::Spec::Unix->splitdir($self->{target_path});
     my $path = '';
     my $new;
 
     while (@dirs) {
-	$path = File::Spec->join($path, shift @dirs);
+	$path = File::Spec::Unix->join($path, shift @dirs);
 	my $kind = $self->{root}->check_path ($path);
 	if ($kind == $SVN::Core::node_none) {
 	    $root->make_dir ($path, $self->{pool});

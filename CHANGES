@@ -1,3 +1,27 @@
+[Changes for 0.45 - Sep 19, 2004]
+
+* Fix has_local for ::VCP.
+
+* Make ::VCP load headrev so find_local_rev will work.
+
+* properly workaround vcp file handler select problem.
+
+* Fix the remaining unescaped regex.
+
+* Support auth_prompt providers. [Autrijus]
+
+* Use even more unique uuid for cvs source.
+
+* Remove corresponding vcp state dir when discarding a mirror.
+
+* File::Spec -> File::Spec::Unix.
+
+* Report remote path removal.
+
+* Delay SVN::Mirror::VCP loading.
+
+* Use Win32API::GUID on win32.
+
 [Changes for 0.44 - Sep 4, 2004]
 
 * Support selective branches mapping with --branch-only=trunk,RELENG_5.

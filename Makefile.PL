@@ -13,12 +13,13 @@ clean_files	(qw't/repos* tmp vcp*');
 requires(
         'SVN::Core'   => $required_svn,
         'URI::Escape' => '0',
+        'Term::ReadKey' => '0',
 );
 features(
     'VCP support' => [
 	-default => 0,
         'VCP' => '0.9',
-        'Data::UUID' => '0',
+        (($^O eq 'MSWin32') ? 'Win32API::GUID' : 'Data::UUID') => 0,
     ],
 );
 

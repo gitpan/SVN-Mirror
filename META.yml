@@ -1,5 +1,5 @@
 name: SVN-Mirror
-version: 0.44
+version: 0.45
 abstract: Mirror remote repositories to local subversion repository
 author: Chia-liang Kao <clkao@clkao.org>
 license: perl
@@ -7,6 +7,7 @@ distribution_type: module
 requires:
   SVN::Core: 1.0.4
   URI::Escape: 0
+  Term::ReadKey: 0
 no_index:
   directory:
     - inc

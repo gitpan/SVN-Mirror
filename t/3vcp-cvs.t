@@ -6,7 +6,7 @@ use File::Path;
 use File::Spec;
 
 if( eval "use VCP::Dest::svk; 1" ) {
-    plan tests => 5;
+    plan tests => 8;
 }
 else {
     plan skip_all => 'VCP::Dest::svk not installed';
@@ -34,7 +34,16 @@ $m->init;
 is (ref $m, 'SVN::Mirror::VCP');
 is ($m->{source}, "cvs:$cvsroot:kuso/...");
 $m->run;
-ok(1);
+
+my ($m2, $mpath);
+($m2, $mpath) = SVN::Mirror::has_local ($m->{repos}, "$m->{source_uuid}:$m->{source_path}");
+ok ($m2);
+is ("$m2->{target_path}$mpath", '/cvs-trunk');
+
+($m2, $mpath) = SVN::Mirror::has_local ($m->{repos}, "$m->{source_uuid}:$m->{source_path}/blah");
+ok ($m2);
+is ("$m2->{target_path}$mpath", '/cvs-trunk/blah');
+
 # check '/cvs-trunk/blah/more'
 
 $m = SVN::Mirror->new (target_path => 'cvs-all', repospath => $abs_path,
@@ -50,3 +59,4 @@ $m = SVN::Mirror->new (target_path => 'cvs-partial', repospath => $abs_path,
 $m->init;
 $m->run;
 ok(1);
+$m->delete;

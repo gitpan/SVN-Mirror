@@ -1,14 +1,28 @@
 package SVN::Mirror::VCP;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.43';
+$VERSION = '0.45';
 use strict;
+use File::Spec;
+
 BEGIN {
-    $ENV{VCPLOGFILE} ||= '/dev/null';
+    $ENV{VCPLOGFILE} ||= File::Spec->devnull;
+    # This can be removed with the next version of vcp released
+    {
+	my $ofh = select;
+	require VCP;
+	select $ofh;
+    }
+
+    if ($^O eq 'MSWin32') {
+        require Win32API::GUID;
+    }
+    else {
+        require Data::UUID;
+    }
 }
-use VCP ;
-use VCP::Dest::svk;
+eval { require VCP::Dest::svk; 1 } or
+    do { warn "VCP::Dest::svk not installed\n"; die };
 use Getopt::Long qw(:config no_ignore_case);
-use Data::UUID ();
 
 sub pre_init {
     my ($self, $new) = @_;
@@ -75,14 +89,22 @@ sub map_filter {
 
 sub init_state {
     my ($self) = @_;
-    $self->{source_uuid} = lc (Data::UUID->new->create_from_name_str
-			       (&Data::UUID::NameSpace_DNS, $self->{source_root}));
+    use Sys::Hostname;
+    my $uuid_src = $self->{source_root};
+    $uuid_src .= hostname if $self->{source_scheme} eq 'cvs';
+    $self->{source_uuid} = lc($self->make_uuid($uuid_src));
     return join (' ', $self->{source}, @{$self->{options}});
+}
+
+sub make_uuid {
+    return Win32API::GUID::CreateGuid() if ($^O eq 'MSWin32');
+    Data::UUID->new->create_from_name_str(&Data::UUID::NameSpace_DNS, $_[0]);
 }
 
 sub load_state {
     my ($self) = @_;
     $self->{source_uuid} = $self->{root}->node_prop ($self->{target_path}, 'svm:uuid');
+    $self->load_fromrev;
 }
 
 sub run {
@@ -122,6 +144,17 @@ sub run {
 sub get_merge_back_editor {
     my ($self, $path, $msg, $committed) = @_;
     die "merge back editor for VCP not implemented yet";
+}
+
+use File::Path qw(rmtree);
+sub delete {
+    my $self = shift;
+    rmtree [VCP::Dest::svk::_db_store_location
+	    ({SVK_REPOSPATH => $self->{repospath},
+	      SVK_TARGETPATH => $self->{target_path},
+	     })];
+    $self->SUPER::delete (@_);
+
 }
 
 1;

@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.43';
+$VERSION = '0.45';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -8,6 +8,7 @@ use SVN::Fs;
 use SVN::Delta;
 use SVN::Ra;
 use SVN::Client ();
+use constant OK => $SVN::_Core::SVN_NO_ERROR;
 
 sub new {
     my $class = shift;
@@ -146,24 +147,155 @@ sub load_state {
 	if $self->{root}->node_prop ('/', join (':', 'svm:mirror', $self->{source_uuid},
 						$self->{source_path} || '/'));
 
-    my $changed = $self->{root}->node_created_rev ($self->{target_path});
-    $prop = $self->{fs}->revision_prop ($changed, 'svm:headrev');
-    die "no headrev" unless $prop;
-    my %revs = map {split (':', $_)} $prop =~ m/^.*$/mg;
-    die "no headrev for $self->{rsource} at rev $changed"
-	unless exists $revs{$self->{rsource_uuid}};
-    $self->{fromrev} = $revs{$self->{rsource_uuid}};
+    die "no headrev"
+	unless defined $self->load_fromrev;
     return;
 }
 
 sub _new_ra {
     my ($self, %arg) = @_;
     $self->{config} ||= SVN::Core::config_get_config (undef, $self->{pool});
+    $self->{auth} ||= $self->_new_auth;
     SVN::Ra->new( url => $self->{rsource},
 		  auth => $self->{auth},
 		  pool => SVN::Pool->new,
 		  config => $self->{config},
 		  %arg);
+}
+
+sub _new_auth {
+    my ($self) = @_;
+    my ($baton, $ref) = SVN::Core::auth_open_helper([
+        SVN::Client::get_simple_provider (),
+        SVN::Client::get_ssl_server_trust_file_provider (),
+        SVN::Client::get_username_provider (),
+        SVN::Client::get_simple_prompt_provider( $self->can('_simple_prompt'), 2),
+        SVN::Client::get_ssl_server_trust_prompt_provider( $self->can('_ssl_server_trust_prompt') ),
+        SVN::Client::get_ssl_client_cert_prompt_provider( $self->can('_ssl_client_cert_prompt'), 2 ),
+        SVN::Client::get_ssl_client_cert_pw_prompt_provider( $self->can('_ssl_client_cert_pw_prompt'), 2 ),
+        SVN::Client::get_username_prompt_provider( $self->can('_username_prompt'), 2),
+    ]);
+    $self->{auth_ref} = $ref;
+    return $baton;
+}
+
+sub _simple_prompt {
+    my ($cred, $realm, $default_username, $may_save, $pool) = @_;
+
+    if (defined $default_username and length $default_username) {
+        print "Authentication realm: $realm\n" if defined $realm and length $realm;
+        $cred->username($default_username);
+    }
+    else {
+        _username_prompt($cred, $realm, $may_save, $pool);
+    }
+
+    $cred->password(_read_password("Password for '" . $cred->username . "': "));
+    $cred->may_save($may_save);
+
+    return OK;
+}
+
+sub _ssl_server_trust_prompt {
+    my ($cred, $realm, $failures, $cert_info, $may_save, $pool) = @_;
+
+    print "Error validating server certificate for '$realm':\n";
+
+    print " - The certificate is not issued by a trusted authority. Use the\n",
+          "   fingerprint to validate the certificate manually!\n"
+      if ($failures & $SVN::Auth::SSL::UNKNOWNCA);
+
+    print " - The certificate hostname does not match.\n"
+      if ($failures & $SVN::Auth::SSL::CNMISMATCH);
+
+    print " - The certificate is not yet valid.\n"
+      if ($failures & $SVN::Auth::SSL::NOTYETVALID);
+
+    print " - The certificate has expired.\n"
+      if ($failures & $SVN::Auth::SSL::EXPIRED);
+
+    print " - The certificate has an unknown error.\n"
+      if ($failures & $SVN::Auth::SSL::OTHER);
+
+    printf(
+        "Certificate information:\n".
+        " - Hostname: %s\n".
+        " - Valid: from %s until %s\n".
+        " - Issuer: %s\n".
+        " - Fingerprint: %s\n",
+        map $cert_info->$_, qw(hostname valid_from valid_until issuer_dname fingerprint)
+    );
+
+    print(
+        $may_save
+            ? "(R)eject, accept (t)emporarily or accept (p)ermanently? "
+            : "(R)eject or accept (t)emporarily? "
+    );
+
+    my $choice = lc(substr(<STDIN> || 'R', 0, 1));
+
+    if ($choice eq 't') {
+        $cred->may_save(0);
+        $cred->accepted_failures($failures);
+    }
+    elsif ($may_save and $choice eq 'p') {
+	warn "==> save!";
+        $cred->may_save(1);
+        $cred->accepted_failures($failures);
+    }
+
+    return OK;
+}
+
+sub _ssl_client_cert_prompt {
+    my ($cred, $realm, $may_save, $pool) = @_;
+
+    print "Client certificate filename: ";
+    chomp(my $filename = <STDIN>);
+    $cred->cert_file($filename);
+
+    return OK;
+}
+
+sub _ssl_client_cert_pw_prompt {
+    my ($cred, $realm, $may_save, $pool) = @_;
+
+    $cred->password(_read_password("Passphrase for '%s': "));
+
+    return OK;
+}
+
+sub _username_prompt {
+    my ($cred, $realm, $may_save, $pool) = @_;
+
+    print "Authentication realm: $realm\n" if defined $realm and length $realm;
+    print "Username: ";
+    chomp(my $username = <STDIN>);
+    $username = '' unless defined $username;
+
+    $cred->username($username);
+
+    return OK;
+}
+
+sub _read_password {
+    my ($prompt) = @_;
+
+    print $prompt;
+
+    require Term::ReadKey;
+    Term::ReadKey::ReadMode('noecho');
+
+    my $password = '';
+    while (defined(my $key = Term::ReadKey::ReadKey(0))) {
+        last if $key =~ /[\012\015]/;
+        $password .= $key;
+    }
+
+    Term::ReadKey::ReadMode('restore');
+    print "\n";
+
+    return $password;
 }
 
 sub _revmap {
@@ -195,7 +327,6 @@ sub mirror {
 
     my $pool = SVN::Pool->new_default ($ppool);
     my ($newrev, $revmap);
-    use SVN::Mirror::Ra;
 
     $ra = $self->{cached_ra}
 	if exists $self->{cached_ra_url} &&
@@ -220,7 +351,7 @@ sub mirror {
          && $self->{rsource} ne $self->{rsource_root}
        ) {
 	(undef, $editor->{anchor}, $editor->{target})
-	    = File::Spec->splitpath($editor->{anchor} || $self->{rsource});
+	    = File::Spec::Unix->splitpath($editor->{anchor} || $self->{rsource});
 	chop $editor->{anchor};
 	$ra = $self->_new_ra ( url => $editor->{anchor}, pool => SVN::Pool->new );
 	@{$self}{qw/cached_ra cached_ra_url/} = ($ra, $editor->{anchor});
@@ -265,9 +396,9 @@ The structure of mod_lists:
             $svn_lpath = $self->{rsource_root} . $svn_lpath;
             $svn_lpath =~ s|^\Q$editor->{anchor}\E/?||;
             my $source_path = $self->{rsource_path} || "/";
-            $local_path =~ s|^$source_path|$self->{target_path}|;
+            $local_path =~ s|^\Q$source_path\E|$self->{target_path}|;
         } else {
-            $svn_lpath =~ s|^$self->{rsource_path}/?||;
+            $svn_lpath =~ s|^\Q$self->{rsource_path}\E/?||;
             $local_path = "$self->{target_path}/$svn_lpath";
         }
 
@@ -299,7 +430,7 @@ The structure of mod_lists:
         @$href{qw/local_source_path source_node_kind/} =
             ( $src_lpath, $source_node_kind );
 
-        if ( /^$self->{rsource_path}/ ) {
+        if ( /^\Q$self->{rsource_path}\E/ ) {
             $editor->{mod_lists}{$svn_lpath} = $href;
         } else {
             $not_processed{$svn_lpath} = $href;
@@ -403,6 +534,7 @@ sub run {
     print "Retrieving log information from $startrev to $endrev\n";
 
     $self->{headrev} = $self->{fs}->youngest_rev;
+    eval {
     $ra->get_log ([''], $startrev, $endrev, 1, 1,
 		  sub {
 		      my ($paths, $rev, $author, $date, $msg, $pool) = @_;
@@ -420,6 +552,16 @@ sub run {
 				    $date, $msg, $pool);
 		      $self->{fromrev} = $rev;
 		  });
+    };
+
+    return unless $@;
+    if ($@ =~ m'no item') {
+	print "Mirror source already removed.\n";
+	undef $@;
+    }
+    else {
+	die $@;
+    }
 }
 
 sub DESTROY {
@@ -545,7 +687,7 @@ sub _translate_rel_path {
         } else {
             $path = "$self->{mirror}{rsource_path}/$path";
         }
-        $path =~ s|^$self->{mirror}{rsource_path}|$self->{mirror}{target_path}|;
+        $path =~ s|^\Q$self->{mirror}{rsource_path}\E|$self->{mirror}{target_path}|;
         return $path;
     }
 
@@ -923,8 +1065,8 @@ sub delete_entry {
     my $source_path = $self->{mirror}{rsource_path};
     my $target_path = $self->{mirror}{target_path};
     $source_path =~ s{^/}{};
-    if ($source_path && $path =~ m/^$source_path/) {
-        $path =~ s/$source_path/$target_path/;
+    if ($source_path && $path =~ m/^\Q$source_path\E/) {
+        $path =~ s/\Q$source_path\E/$target_path/;
     } else {
         $path = "$target_path/$path";
     }
