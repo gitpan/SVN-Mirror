@@ -1,3 +1,13 @@
+[Changes for 0.53 - Jan 9, 2005]
+
+* Fix the case that a mirror anchor is intially created on remote
+  by a copy of its parent directory.
+
+* Use simple editor for 'R'-only changes too.
+
+* Fix a regression that simple copies are invoking full tree delta with
+  reporter.
+
 [Changes for 0.52 - Dec 29, 2004]
 
 * Workaround ra_dav memory leaks.

@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.52';
+$VERSION = '0.53';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -408,7 +408,6 @@ The structure of mod_lists:
 =cut
 
     $editor->{mod_lists} = {};
-    my %not_processed;
     foreach ( keys %$paths ) {
         my $item = $paths->{$_};
         my $href;
@@ -437,11 +436,12 @@ The structure of mod_lists:
 	$rpath = "/$rpath" if $rpath && substr ($rpath, 0, 1) ne '/';
         my ($src_lpath, $source_node_kind) = (undef, $SVN::Node::unknown);
         if ( defined $lrev && $lrev != -1 ) {
-            my $rev_root = $self->{fs}->revision_root ($lrev);
             $src_lpath = $rpath;
 	    # copy within mirror anchor
             if ($src_lpath =~ s|^\Q$self->{rsource_path}\E|$self->{target_path}|) {
-		# XXX: The old code checks if src_lpath exists.  Do we need that?
+		# $source_node_kind is used for deciding if we need reporter later
+		my $rev_root = $self->{fs}->revision_root ($lrev);
+		$source_node_kind = $rev_root->check_path ($src_lpath);
 	    }
 	    else {
                 # The source is not in local depot.  Invalidate this
@@ -456,8 +456,15 @@ The structure of mod_lists:
 
         if ( /^\Q$self->{rsource_path}\E/ ) {
             $editor->{mod_lists}{$svn_lpath} = $href;
-        } else {
-            $not_processed{$svn_lpath} = $href;
+        } elsif ($href->{action} eq 'A' &&
+		 index ($self->{rsource_path}, "$_/") == 0) {
+	    # special case for the parent of the anchor is copied.
+	    my $reanchor = $self->{rsource_path};
+	    $reanchor =~ s{^\Q$_\E/}{};
+	    $href->{remote_path} .= '/'.$reanchor;
+	    $href->{local_path} = $self->{target_path};
+            $editor->{mod_lists}{length $svn_lpath ? "$svn_lpath/$reanchor"
+				     : $reanchor} = $href;
         }
     }
 
@@ -467,7 +474,7 @@ The structure of mod_lists:
         my @mod_list = keys %{$editor->{mod_lists}};
         if ( ($self->{skip_to} && $self->{skip_to} <= $rev) ||
 	     grep { my $href = $editor->{mod_lists}{$_};
-                    !( ( $href->{action} eq 'A'
+                    !( ( ($href->{action} eq 'A' || $href->{action} eq 'R')
                          && defined $href->{local_rev}
                          && $href->{local_rev} != -1
                          && $href->{source_node_kind} == $SVN::Node::dir)
@@ -494,15 +501,16 @@ The structure of mod_lists:
                 my $href = $editor->{mod_lists}{$_};
                 my $action = $href->{action};
 
-                if ($action eq 'A') {
+		if ($action eq 'D' || $action eq 'R') {
+                    $edit->delete_entry ($_);
+                }
+
+                if ($action eq 'A' || $action eq 'R') {
                     $edit->copy_directory ($_, $href->{local_source_path},
                                            $href->{local_rev});
                     $edit->close_directory ($_);
-                } elsif ($action eq 'D') {
-                    $edit->delete_entry ($_);
-                }
-            }
-
+		}
+	    }
             $edit->close_edit ();
         }
     }
