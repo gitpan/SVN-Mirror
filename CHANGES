@@ -1,3 +1,9 @@
+[Changes for 0.58 - Apr 18, 2005]
+
+* Fix edge case in local copy_source resolution and unresolvable source.
+
+* Remove bogus path translation in delete_entry that might result in segfaults.
+
 [Changes for 0.57 - Mar 29, 2005]
 
 * API catchup for latest svn-trunk.

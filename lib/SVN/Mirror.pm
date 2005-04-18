@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.57';
+our $VERSION = '0.58';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -208,7 +208,8 @@ sub find_local_rev {
         $old_pool->clear;
         ($old_pool, $new_pool) = ($new_pool, $old_pool);
 	my ($lrev) = $prop =~ m/^\Q$uuid\E:(\d+)$/m;
-        next unless defined $lrev;
+	# 0 would be the init change we had. not good for any use.
+        next unless $lrev;
 	$cache->{$lrev} = $rev;
 	# XXX: make use of svm:incomplete prop to see if this is safe to use
 	return $rev if $rrev >= $lrev;

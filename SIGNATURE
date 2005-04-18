@@ -14,9 +14,9 @@ not run its Makefile.PL or Build.PL.
 -----BEGIN PGP SIGNED MESSAGE-----
 Hash: SHA1
 
-SHA1 704cccf12bb1958371bbf8e79345c7afbd18becb CHANGES
+SHA1 960b0c8811972c1ee51849a3a7f6d274740062af CHANGES
 SHA1 07936d00e1c61716cd7db706f6c02b2ef25bab4e MANIFEST
-SHA1 1ca1cedba58c8db07e96e0aee7f8a3dfab3acc5c META.yml
+SHA1 99a47050d3c1c9fc5f3c87d9df7aca87237a4f4d META.yml
 SHA1 adc7f8caeaeee11c7d081d2c80c3665ff5b510e4 Makefile.PL
 SHA1 b39cfebf1c1d8e353e5c0a2628b94bd91d96ad66 README
 SHA1 76b454f5cd08b3d7e032640e071d4562ee58cf46 TODO
@@ -33,8 +33,8 @@ SHA1 6fca1d05c6b9a8f10865de5be4fefb9bfa7a52e9 inc/Module/Install/Metadata.pm
 SHA1 2e6f5004ac895a26c41f043bf8fa5efb4f5b21c4 inc/Module/Install/Scripts.pm
 SHA1 6b051a6d3ed824df40343a7ff09b66282e1783c3 inc/Module/Install/Win32.pm
 SHA1 77f82ce7c623e05304ac9aae05bcd1a5558fadbb inc/Module/Install/WriteAll.pm
-SHA1 39c6733b371218b4a48cbfa5baba8d8d772be45d lib/SVN/Mirror.pm
-SHA1 2569b9ec63f4d8338a1e18a2b8cd9161f6920c74 lib/SVN/Mirror/Ra.pm
+SHA1 2827977a7e79b07ac8ea5080bcf3bb514e0a8bdc lib/SVN/Mirror.pm
+SHA1 bfdb58564b5fd843d4aed8f8333f3efbe7ddd72f lib/SVN/Mirror/Ra.pm
 SHA1 31fc19f899164b467869bd5ddd46ffc6d94d6873 lib/SVN/Mirror/VCP.pm
 SHA1 0e2288e4ba90514fdb4838d4326d5af191422982 t/1use.t
 SHA1 eabb122b5ef3f5c8aec17e5e40cf72356747b68d t/2basic.t
@@ -67,7 +67,7 @@ SHA1 5e3dfa993bb5089b418c5e8ffe79cacb93de099f t/test_repo.dump
 -----BEGIN PGP SIGNATURE-----
 Version: GnuPG v1.4.0 (FreeBSD)
 
-iD8DBQFCSVh+k1XldlEkA5YRAuLjAJwPVLNWS5gHeeOD4BDiwdShL4SugwCbB4vS
-Y3ECocBOvBJGK0xmji4pzm0=
-=eaV5
+iD8DBQFCY/xgk1XldlEkA5YRAnaRAJ9VlcO8zPBPdmycDr3AOR40fbiUjQCfeQZj
+U2s1gvhmax5nN81vV3Pw6KU=
+=glcf
 -----END PGP SIGNATURE-----

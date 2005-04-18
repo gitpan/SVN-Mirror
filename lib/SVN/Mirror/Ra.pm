@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.57';
+$VERSION = '0.58';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -441,19 +441,22 @@ The structure of mod_lists:
         if ( defined $lrev && $lrev != -1 ) {
 	    $src_lpath = $rpath;
 	    # copy within mirror anchor
-            if ($src_lpath =~ s|^\Q$self->{rsource_path}\E|$self->{target_path}|) {
+            if ($src_lpath =~ s|^\Q$self->{rsource_path}\E/|$self->{target_path}/|) {
 		# $source_node_kind is used for deciding if we need reporter later
 		my $rev_root = $self->{fs}->revision_root ($lrev);
 		$source_node_kind = $rev_root->check_path ($src_lpath);
 	    }
 	    else {
-                # The source is not in local depot.  Invalidate this
-                # copy.
-		($src_lpath, $href->{local_rev}) =
-		    $self->{cb_copy_notify}
-		    ? $self->{cb_copy_notify}->($self, $local_path, $rpath, $rrev)
-		    : (undef, undef)
-            }
+		($src_lpath, $href->{local_rev}) = (undef, undef);
+	    }
+	}
+	elsif ($rrev != -1) {
+	    # The source is not in local depot.  Invalidate this
+	    # copy.
+	    ($src_lpath, $href->{local_rev}) =
+		$self->{cb_copy_notify}
+		? $self->{cb_copy_notify}->($self, $local_path, $rpath, $rrev)
+		: (undef, undef)
         }
         @$href{qw/local_source_path source_node_kind/} =
             ( $src_lpath, $source_node_kind );
@@ -1150,15 +1153,6 @@ sub delete_entry {
     my ($self, $path, $rev, $pb, $pool) = @_;
     print "MirrorEditor::delete_entry($path, $rev)\n" if $debug;
     return unless $pb;
-
-    my $source_path = $self->{mirror}{rsource_path};
-    my $target_path = $self->{mirror}{target_path};
-    $source_path =~ s{^/}{};
-    if ($source_path && $path =~ m/^\Q$source_path\E/) {
-        $path =~ s/\Q$source_path\E/$target_path/;
-    } else {
-        $path = "$target_path/$path";
-    }
 
     $self->SUPER::delete_entry ($path, $self->{mirror}{headrev},
 				$pb, $pool);
