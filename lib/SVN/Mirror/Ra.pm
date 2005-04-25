@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.58';
+$VERSION = '0.59';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -155,8 +155,10 @@ sub load_state {
 	if $self->{root}->node_prop ('/', join (':', 'svm:mirror', $self->{source_uuid},
 						$self->{source_path} || '/'));
 
-    die "no headrev"
-	unless defined $self->load_fromrev;
+    unless ($self->{ignore_lock}) {
+	die "no headrev"
+	    unless defined $self->load_fromrev;
+    }
     return;
 }
 
@@ -1065,7 +1067,7 @@ sub close_directory {
     $self->_leave_new_copied_path ()
         if $self->_under_latest_copypath ($path);
         
-    $self->SUPER::close_directory ($baton);
+    $self->SUPER::close_directory ($baton, @_);
 }
 
 sub close_file {

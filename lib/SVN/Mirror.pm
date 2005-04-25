@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.58';
+our $VERSION = '0.59';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -14,7 +14,7 @@ SVN::Mirror - Mirror remote repository to local Subversion repository
 =head1 SYNOPSIS
 
  my $m = SVN::Mirror->new (source => $url,
-			   repost => '/path/to/repository',
+			   repos => '/path/to/repository',
 			   target_path => '/mirror/project1'
 			   repos_create => 1,
 			   skip_to => 100
@@ -118,7 +118,6 @@ sub has_local {
     return unless $specanchor;
     my $path = $mirrored{$specanchor};
     $spec =~ s/^\Q$specanchor\E//;
-    $path =~ s/^\Q$spec\E//;
     my $m = SVN::Mirror->new (target_path => $path,
 			     repos => $repos,
 			     pool => SVN::Pool->new,
