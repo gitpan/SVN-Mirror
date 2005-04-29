@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.59';
+$VERSION = '0.60';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -584,11 +584,18 @@ sub get_latest_rev {
 	else {
 	    $headrev = $ra->get_latest_revnum
 		unless defined $headrev;
-	    $ra->get_log ([''], -1, $headrev-$offset,
+
+	    $headrev -= $offset;
+	    $ra->get_log ([''], -1, $headrev,
 			  ($SVN::Core::VERSION ge '1.2.0') ? (0) : (),
 			  0, 1,
 			  sub { $rev = $_[1] unless defined $rev});
-	    $offset*=2;
+	    if ( $offset < $headrev ) {
+		$offset*=2;
+	    }
+	    else {
+		$offset = 2;
+	    }
 	}
     }
 

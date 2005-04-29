@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.59';
+our $VERSION = '0.60';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -324,7 +324,8 @@ sub relocate {
     $self->load_state ();
 
     my $ra = $self->_new_ra (url => $self->{source});
-    die "uuid is different" unless $ra->get_uuid eq $self->{source_uuid};
+    my $ra_uuid = $ra->get_uuid;
+    die "Local and remote UUID differ." unless ($ra_uuid eq $self->{source_uuid} or $ra_uuid eq $self->{rsource_uuid});
 
     # Get latest revprops
     my $old_prevs = $self->{fs}->revision_proplist(

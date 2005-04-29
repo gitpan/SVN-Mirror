@@ -1,4 +1,11 @@
-[Changes for 0.59 - Apr 18, 2005]
+[Changes for 0.60 - Apr 29, 2005]
+
+* When doing get_latest_rev with 1.1.x, reset offset if it went below 0.
+  [Marcus Rueckert <darix@irssi.org>]
+
+* Fix uuid checking in --relocate. [Marcus Rueckert <darix@irssi.org>]
+
+[Changes for 0.59 - Apr 25, 2005]
 
 * Doc fixes. [Mathias Hennersdorf <henner@tty.ch>]
 
