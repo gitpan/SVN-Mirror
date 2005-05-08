@@ -1,3 +1,11 @@
+[Changes for 0.61 - May 8, 2005]
+
+* Perform reanchor only on paths involving copies.
+  This fixes kde svn repository problem.
+
+* Fix two minor pool usage that causes error on nfs-mounted fsfs (and
+  possibly win32).
+
 [Changes for 0.60 - Apr 29, 2005]
 
 * When doing get_latest_rev with 1.1.x, reset offset if it went below 0.

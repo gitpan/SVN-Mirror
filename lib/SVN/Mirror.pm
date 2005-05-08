@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.60';
+our $VERSION = '0.61';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -370,7 +370,7 @@ sub mkpdir {
 	$path = File::Spec::Unix->join($path, shift @dirs);
 	my $kind = $self->{root}->check_path ($path);
 	if ($kind == $SVN::Core::node_none) {
-	    $root->make_dir ($path, $self->{pool});
+	    $root->make_dir ($path, SVN::Pool->new);
 	    $new = 1;
 	}
 	elsif ($kind != $SVN::Core::node_dir) {
@@ -434,18 +434,7 @@ sub upgrade {
 
 sub commit_txn {
     my ($self, $txn) = @_;
-    my $rev;
-
-    if ($^O eq 'MSWin32' and ref($self) and -e "$self->{repospath}/db/current") {
-        # XXX - On Win32+fsfs, ->commit works but raises exceptions
-        eval { $txn->commit };
-        $rev = $self->{fs}->youngest_rev;
-    }
-    else {
-        $rev = ($txn->commit)[1];
-    }
-
-    return $rev;
+    return ($txn->commit)[1];
 }
 
 use Sys::Hostname;

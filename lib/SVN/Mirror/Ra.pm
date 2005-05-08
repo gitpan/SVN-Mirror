@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.60';
+$VERSION = '0.61';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -469,7 +469,7 @@ The structure of mod_lists:
         if ( $_ eq $self->{rsource_path} or
 	     index ("$_/", "$self->{rsource_path}/") == 0 ) {
             $editor->{mod_lists}{$svn_lpath} = $href;
-        } elsif ($href->{action} eq 'A' &&
+        } elsif (defined $lrev && $lrev != -1 && $href->{action} eq 'A' &&
 		 index ($self->{rsource_path}, "$_/") == 0) {
 	    # special case for the parent of the anchor is copied.
 	    my $reanchor = $self->{rsource_path};
@@ -1048,7 +1048,7 @@ sub add_directory {
     $dir_baton = $self->$method($tran_path, $pb, @_);
 
     # Always 'touch' the directory, even for empty modifications.
-    $self->change_dir_prop ( $dir_baton, 'svm' => undef );
+    $self->change_dir_prop ( $dir_baton, 'svm' => undef, $pool );
 
     $self->_remove_entries_in_path ($path, $dir_baton, $pool) if $is_copy;
 
@@ -1182,8 +1182,7 @@ sub close_edit {
     local $SIG{TERM} = 'IGNORE';
 
     $self->{mirror}->lock ('mirror');
-    # XXX - On Win32+fsfs, ->close_edit works but raises exceptions
-    local $@; eval { $self->SUPER::close_edit ($pool) };
+    $self->SUPER::close_edit ($pool);
 }
 
 1;
