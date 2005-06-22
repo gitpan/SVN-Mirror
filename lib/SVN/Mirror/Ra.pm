@@ -612,13 +612,16 @@ sub run {
     $self->lock ('sync');
     $self->load_fromrev;
     $self->{headrev} = $self->{fromrev} ?
-	$self->find_local_rev ($self->{fromrev}) : $self->{fs}->youngest_rev;
+	$self->find_local_rev ($self->{fromrev}, $self->{rsource_uuid}) : $self->{fs}->youngest_rev;
     if ($self->{skip_to} && $self->{skip_to} =~ m/^HEAD(?:-(\d+))?/) {
 	$self->{skip_to} = $latestrev - ($1 || 0);
     }
     my $startrev = ($self->{skip_to} || 0);
     $startrev = $self->{fromrev}+1 if $self->{fromrev}+1 > $startrev;
     my $endrev = shift || -1;
+    if ($endrev && $endrev =~ m/^HEAD(?:-(\d+))?/) {
+        $endrev = $latestrev - ($1 || 0);
+    }
     $endrev = $latestrev if $endrev == -1;
 
     print "Syncing $self->{source}".($self->_relayed ? " via $self->{rsource}\n" : "\n");
@@ -1026,6 +1029,10 @@ sub add_directory {
             } elsif ( !defined ($copyrev) ) {
                 $self->_create_new_copied_path ($path);
             }
+	    else {
+		$self->_enter_new_copied_path ()
+		    if $self->_under_latest_copypath ($path);
+	    }
         }
     } else {
         # raise error.

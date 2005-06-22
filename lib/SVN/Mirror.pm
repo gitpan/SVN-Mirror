@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.61';
+our $VERSION = '0.62';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -46,11 +46,13 @@ use URI::Escape;
 use SVN::Simple::Edit;
 
 use SVN::Mirror::Ra;
+use SVN::Mirror::Git;
 
 sub _schema_class {
     my ($url) = @_;
     die "no source specificed" unless $url;
     return 'SVN::Mirror::Ra' if $url =~ m/^(https?|file|svn(\+.*?)?):/;
+    return 'SVN::Mirror::Git' if $url =~ m/^git:/;
     if ($url =~ m/^(p4|cvs|arch)/) {
 	eval {
 	    require SVN::Mirror::VCP; 1
@@ -104,11 +106,16 @@ sub has_local {
     my ($repos, $spec) = @_;
     my $fs = $repos->fs;
     my $root = $fs->revision_root ($fs->youngest_rev);
-    my %mirrored = map { my $path = $root->node_prop ($_, 'svm:source');
-			 # XXX: per-backend path extraction method
-			 $path =~ s/^.*\!// or ($path) = $path =~ m/^.+:([^:\s]+)/;
-			 ( join(':', $root->node_prop ($_, 'svm:uuid'), $path) => $_) }
-	list_mirror ($repos);
+    local $@;
+    # XXX: 
+    my %mirrored = map {
+			 my $m = SVN::Mirror->new (target_path => $_,
+						   repos => $repos,
+						   pool => SVN::Pool->new,
+						   get_source => 1);
+			 eval { $m->init };
+			 $@ ? () : (join(':', $m->{source_uuid}, $m->{source_path}) => $_)
+		     } list_mirror ($repos);
     # XXX: gah!
     my ($specanchor) =
 	map { (m|[/:]$| ?
@@ -123,7 +130,7 @@ sub has_local {
 			     pool => SVN::Pool->new,
 			     get_source => 1);
     eval { $m->init () };
-    undef $@, return if $@;
+    return if $@;
     if ($spec) {
 	$spec = "/$spec" if substr ($spec, 0, 1) ne '/';
 	$spec = '' if $spec eq '/';

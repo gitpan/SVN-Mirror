@@ -15,6 +15,8 @@ requires(
         'URI::Escape' => '0',
         'Term::ReadKey' => '0',
         'SVN::Simple::Edit' => '0',
+        'Date::Format' => '0',
+        'File::chdir' => '0',
 );
 features(
     'VCP support' => [

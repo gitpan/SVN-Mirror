@@ -11,6 +11,7 @@ inc/Module/Install/Scripts.pm
 inc/Module/Install/Win32.pm
 inc/Module/Install/WriteAll.pm
 lib/SVN/Mirror.pm
+lib/SVN/Mirror/Git.pm
 lib/SVN/Mirror/Ra.pm
 lib/SVN/Mirror/VCP.pm
 bin/svm
@@ -27,6 +28,8 @@ t/4vcp-p4.t
 t/5upgrade.t
 t/6relay.t
 t/7copy.t
+t/8skipto-torev.t
+t/9overlapping.t
 t/copy.dump
 t/test_old.dump
 t/test_repo.dump

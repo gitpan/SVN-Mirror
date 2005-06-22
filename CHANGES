@@ -1,3 +1,15 @@
+[Changes for 0.62 - Jun 22, 2005]
+
+* Support HEAD and HEAD-n for --torev [Jody Belka]
+
+* Resolve the fromrev from headrev with the relayed source, so for
+  relayed skip-to mirror it won't explode.
+
+* When there's replaced directory, properly _enter_copied_path when
+  it's not a copy.
+
+* Git support.
+
 [Changes for 0.61 - May 8, 2005]
 
 * Perform reanchor only on paths involving copies.
