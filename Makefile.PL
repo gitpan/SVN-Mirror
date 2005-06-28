@@ -17,6 +17,7 @@ requires(
         'SVN::Simple::Edit' => '0',
         'Date::Format' => '0',
         'File::chdir' => '0',
+        'Class::Accessor' => '0',
 );
 features(
     'VCP support' => [

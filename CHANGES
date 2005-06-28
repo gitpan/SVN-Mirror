@@ -1,3 +1,7 @@
+[Changes for 0.63 - Jun 28, 2005]
+
+* Fix missing dependency - Class::Accessor.
+
 [Changes for 0.62 - Jun 22, 2005]
 
 * Support HEAD and HEAD-n for --torev [Jody Belka]
