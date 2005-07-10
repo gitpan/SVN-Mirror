@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.63';
+our $VERSION = '0.64';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -46,13 +46,17 @@ use URI::Escape;
 use SVN::Simple::Edit;
 
 use SVN::Mirror::Ra;
-use SVN::Mirror::Git;
 
 sub _schema_class {
     my ($url) = @_;
     die "no source specificed" unless $url;
     return 'SVN::Mirror::Ra' if $url =~ m/^(https?|file|svn(\+.*?)?):/;
-    return 'SVN::Mirror::Git' if $url =~ m/^git:/;
+    if ($url =~ m/^git:/) {
+	eval {
+	    require SVN::Mirror::Git; 1
+	} and return 'SVN::Mirror::Git';
+	warn "SVK required for git support.\n";
+    }
     if ($url =~ m/^(p4|cvs|arch)/) {
 	eval {
 	    require SVN::Mirror::VCP; 1

@@ -1,3 +1,7 @@
+[Changes for 0.64 - Jul 11, 2005]
+
+* Make git support load later to avoid circular dependency with svk.
+
 [Changes for 0.63 - Jun 28, 2005]
 
 * Fix missing dependency - Class::Accessor.
