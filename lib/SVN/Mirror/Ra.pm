@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.61';
+$VERSION = '0.65';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -370,7 +370,9 @@ sub mirror {
 
     @{$self}{qw/cached_ra cached_ra_url/} = ($ra, $self->{rsource});
     if ( ( $fromrev == 0
-           || !(defined $fromrev && $self->find_local_rev($fromrev, $self->{rsource_uuid})) )
+# WTF do we need to check this?
+#           || !(defined $fromrev && $self->find_local_rev($fromrev, $self->{rsource_uuid}))
+         )
          && $self->{rsource} ne $self->{rsource_root}
        ) {
 	(undef, $editor->{anchor}, $editor->{target})
@@ -578,7 +580,7 @@ sub get_latest_rev {
 	# vs svnserve 1.1, it retrieves all logs and leave the connection
 	# in an inconsistent state.
 	if ($SVN::Core::VERSION ge '1.2.0' && $self->{rsource} !~ m/^svn/) {
-	    $ra->get_log ([''], -1, 0, 1, 0, 1,
+	    $ra->get_log ([''], -1, 1, 1, 0, 1,
 			   sub { $rev = $_[1] });
 	}
 	else {
@@ -611,8 +613,11 @@ sub run {
 
     $self->lock ('sync');
     $self->load_fromrev;
-    $self->{headrev} = $self->{fromrev} ?
-	$self->find_local_rev ($self->{fromrev}, $self->{rsource_uuid}) : $self->{fs}->youngest_rev;
+    # there were code here to use find_local_rev, but it will get base that
+    # is too old for use, if there are relocate happening.
+    # but this might cause race condition, while we also have lock now, need
+    # to take a closer look.
+    $self->{headrev} = $self->{fs}->youngest_rev;
     if ($self->{skip_to} && $self->{skip_to} =~ m/^HEAD(?:-(\d+))?/) {
 	$self->{skip_to} = $latestrev - ($1 || 0);
     }

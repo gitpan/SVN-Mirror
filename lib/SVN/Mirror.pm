@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.64';
+our $VERSION = '0.65';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -170,20 +170,29 @@ sub is_mirrored {
 
 sub load_fromrev {
     my ($self) = @_;
+    my $fromrev;
+    # try without lock first
+    if (defined ($fromrev = $self->_do_load_fromrev)) {
+	return $self->{fromrev} = $fromrev;
+    }
     $self->lock('mirror');
+    $fromrev = $self->_do_load_fromrev;
+    $self->unlock('mirror');
+    $self->{fromrev} = $fromrev if defined $fromrev;
+    return $fromrev;
+}
+
+sub _do_load_fromrev {
+    my $self = shift;
     my $fs = $self->{fs};
     my $root = $fs->revision_root ($fs->youngest_rev);
     my $changed = $root->node_created_rev ($self->{target_path});
-    $self->unlock('mirror');
     my $prop = $fs->revision_prop ($changed, 'svm:headrev');
     return unless $prop;
     my %revs = map {split (':', $_)} $prop =~ m/^.*$/mg;
     my $uuid = $self->{rsource_uuid} || $self->{source_uuid};
-    return unless exists $revs{$uuid};
-    $self->{fromrev} = $revs{$uuid};
+    return $revs{$uuid};
 }
-
-my %CACHE;
 
 sub find_local_rev {
     my ($self, $rrev, $uuid) = @_;
@@ -197,34 +206,50 @@ sub find_local_rev {
     my $pool = SVN::Pool->new_default ($self->{pool});
     my $fs = $self->{repos}->fs;
 
-    # XXX: make better use of the cache
-    my $cache = $CACHE{$fs->get_uuid}{$uuid} ||= {};
-    return $cache->{$rrev} if exists $cache->{$rrev};
-    # We cannot try to get node_history() on $self->{target_path}.  If
-    # a copy is from an empty revision, we'll never get its local
-    # revision.  An empty revision could only be found based on root
-    # path.  For real example, see r2770 to r2769 in
-    # http://svn.collab.net/repos/svn.
+    return $self->_find_local_rev($rrev, $uuid);
+}
 
-    my $old_pool = SVN::Pool->new;
-    my $new_pool = SVN::Pool->new;
 
-    my $hist = $fs->revision_root ($fs->youngest_rev)->
-	node_history ($self->{target_path}, $old_pool);
+sub _find_local_rev {
+    my ($self, $rrev, $uuid, $path) = @_;
+    my $fs = $self->{repos}->fs;
 
-    while ($hist = $hist->prev (0, $new_pool)) {
-	my $rev = ($hist->location ($new_pool))[1];
-	my $prop = $self->{fs}->revision_prop ($rev, 'svm:headrev', $old_pool) or next;
-        $old_pool->clear;
-        ($old_pool, $new_pool) = ($new_pool, $old_pool);
-	my ($lrev) = $prop =~ m/^\Q$uuid\E:(\d+)$/m;
-	# 0 would be the init change we had. not good for any use.
-        next unless $lrev;
-	$cache->{$lrev} = $rev;
-	# XXX: make use of svm:incomplete prop to see if this is safe to use
-	return $rev if $rrev >= $lrev;
+    $path ||= $self->{target_path};
+    my @rev = (1, $fs->youngest_rev);
+
+    my $id = $fs->revision_root($rev[1])->node_id($path);
+    my $pool = SVN::Pool->new_default;
+
+    while ($rev[0] <= $rev[1]) {
+	$pool->clear;
+	my $rev = int(($rev[0]+$rev[1])/2);
+	my $root = $fs->revision_root($rev);
+	# In the revision we are looking at, the path must exist and
+	# related to the one we know
+	if ($root->check_path($path) &&
+	    SVN::Fs::check_related($id, $root->node_id($path))) {
+	    # normalise the revision so we can hit the headrev prop.
+	    # But don't normalise when we are bounded to one revision,
+	    # as this is likely the case where no path is touched.
+	    my $nrev = $rev;
+	    $nrev = ($root->node_history($path)->prev(0)->location)[1]
+		unless $rev[0] == $rev[1] || $nrev == $root->node_created_rev ($path);
+	    my %rev = $self->find_remote_rev($nrev, $self->{repos});
+	    my $found = $rev{$uuid};
+
+	    $rev[0] = $rev + 1, next unless defined $found;
+	    return $nrev if $rrev == $found && !$fs->revision_prop ($nrev, 'svm:incomplete');
+	    if ($rrev > $found) {
+		$rev[0] = $rev+1;
+	    }
+	    else {
+		$rev[1] = $rev-1;
+	    }
+	}
+	else {
+	    $rev[0] = $rev+1;
+	}
     }
-
     return;
 }
 
@@ -260,7 +285,6 @@ sub delete {
         $txnroot->change_node_prop ($self->{target_path}, 'svm:uuid', undef);
     }
     my $rev = $self->commit_txn($txn);
-    delete $CACHE{$fs->get_uuid}{$self->{source_uuid}};
     print "Committed revision $rev.\n";
 }
 
@@ -346,6 +370,8 @@ sub relocate {
     my $rev = $self->do_initialize;
     $self->{fs}->change_rev_prop ($rev, $_ => $old_prevs->{$_})
         for sort grep /^svm:/, keys %$old_prevs;
+
+    $self->{fs}->change_rev_prop ($rev, 'svm:incomplete' => '*');
 
     return $rev;
 }

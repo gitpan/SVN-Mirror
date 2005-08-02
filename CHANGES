@@ -1,3 +1,10 @@
+[Changes for 0.65 - Aug 2, 2005]
+
+* Fix a bug when mirroring only HEAD with dav/svn-1.2.0 on server.
+
+* Performance imporvements on large repositories for revision lookup
+  and meta data lookup. [Sponsored by Fotango]
+
 [Changes for 0.64 - Jul 11, 2005]
 
 * Make git support load later to avoid circular dependency with svk.
