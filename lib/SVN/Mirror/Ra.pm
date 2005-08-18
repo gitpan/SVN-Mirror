@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.65';
+$VERSION = '0.66';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -428,14 +428,18 @@ The structure of mod_lists:
             $local_path = "$self->{target_path}/$svn_lpath";
         }
 
+	my $local_rev = -1;
+	unless ($item->copyfrom_rev == -1) {
+	    $local_rev = $self->find_local_rev
+		($item->copyfrom_rev, $self->{rsource_uuid});
+	}
 	# XXX: the logic of the code here is a mess!
         my ($action, $rpath, $rrev, $lrev) =
             @$href{qw/action remote_path remote_rev local_rev local_path/} =
                 ( $item->action,
                   $item->copyfrom_path,
                   $item->copyfrom_rev,
-                  ($item->copyfrom_rev == -1) ?
-                    -1 : $self->find_local_rev ($item->copyfrom_rev, $self->{rsource_uuid}) || undef,
+		  $local_rev,
                   $local_path,
                 );
 	# workaround fsfs remoet_path inconsistencies
@@ -465,13 +469,12 @@ The structure of mod_lists:
         @$href{qw/local_source_path source_node_kind/} =
             ( $src_lpath, $source_node_kind );
 
-	# XXX: do we still need the reanchor case?
-	# Also, the loop should not reached here if changed path is
+	# XXX: the loop should not reached here if changed path is
 	# not interesting to us, skip them at the beginning the the loop
         if ( $_ eq $self->{rsource_path} or
 	     index ("$_/", "$self->{rsource_path}/") == 0 ) {
             $editor->{mod_lists}{$svn_lpath} = $href;
-        } elsif (defined $lrev && $lrev != -1 && $href->{action} eq 'A' &&
+        } elsif ($rrev != -1 && $href->{action} eq 'A' &&
 		 index ($self->{rsource_path}, "$_/") == 0) {
 	    # special case for the parent of the anchor is copied.
 	    my $reanchor = $self->{rsource_path};
@@ -484,7 +487,10 @@ The structure of mod_lists:
     }
 
     unless (keys %{$editor->{mod_lists}}) {
-        print "Skipped revision $rev.\n";
+	my $root = $editor->open_root($self->{headrev});
+	$editor->change_dir_prop ($root, svm => undef);
+	$editor->close_directory($root);
+	$editor->close_edit;
     } else {
         my @mod_list = keys %{$editor->{mod_lists}};
         if ( ($self->{skip_to} && $self->{skip_to} <= $rev) ||
@@ -636,12 +642,19 @@ sub run {
 
     print "Retrieving log information from $startrev to $endrev\n";
 
+    my $firsttime = 1;
     eval {
     $ra->get_log ([''], $startrev, $endrev,
 		  ($SVN::Core::VERSION ge '1.2.0') ? (0) : (),
 		  1, 1,
 		  sub {
 		      my ($paths, $rev, $author, $date, $msg, $pool) = @_;
+		      # for the first time, skip_to might not hit
+		      # active revision in the tree. adjust to make it so.
+		      if ($firsttime) {
+			  $self->{skip_to} = $rev if defined $self->{skip_to};
+			  $firsttime = 0;
+		      }
 		      # move the anchor detection stuff to &mirror ?
 		      if (defined $self->{skip_to} && $rev <= $self->{skip_to}) {
 			  # XXX: get the logs for skipped changes

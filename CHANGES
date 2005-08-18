@@ -1,3 +1,11 @@
+[Changes for 0.66 - Aug 18, 2005]
+
+* Fix a regression when the mirrored revision has copies from revision
+  numbers outside the path we are mirroring.
+
+* Fix a regression since 0.61 for the case that mirror anchor parent was
+  copied from somewhere else.
+
 [Changes for 0.65 - Aug 2, 2005]
 
 * Fix a bug when mirroring only HEAD with dav/svn-1.2.0 on server.

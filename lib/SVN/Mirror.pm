@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.65';
+our $VERSION = '0.66';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -206,9 +206,30 @@ sub find_local_rev {
     my $pool = SVN::Pool->new_default ($self->{pool});
     my $fs = $self->{repos}->fs;
 
-    return $self->_find_local_rev($rrev, $uuid);
-}
+    my $rev = $self->_find_local_rev($rrev, $uuid);
+    return $rev if defined $rev;
 
+    # try again with iterative, for the case that the source revision
+    # is something we are not mirroring.
+    my $old_pool = SVN::Pool->new;
+    my $new_pool = SVN::Pool->new;
+
+    my $hist = $fs->revision_root ($fs->youngest_rev)->
+	node_history ($self->{target_path}, $old_pool);
+
+    while ($hist = $hist->prev (1, $new_pool)) {
+	$rev = ($hist->location ($new_pool))[1];
+	my %rev = $self->find_remote_rev($rev, $self->{repos});
+	my $lrev = $rev{$uuid};
+        $old_pool->clear;
+        ($old_pool, $new_pool) = ($new_pool, $old_pool);
+
+	# 0 would be the init change we had. not good for any use.
+        next unless $lrev;
+	return $rev if $rrev >= $lrev;
+    }
+    return;
+}
 
 sub _find_local_rev {
     my ($self, $rrev, $uuid, $path) = @_;

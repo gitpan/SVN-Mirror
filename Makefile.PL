@@ -25,7 +25,7 @@ features(
         'VCP' => '0.9',
         (($^O eq 'MSWin32') ? 'Win32API::GUID' : 'Data::UUID') => 0,
     ],
-);
+) unless $^O eq 'MSWin32'; # VCP support currently requires symlinks
 
 include('ExtUtils::AutoInstall');
 auto_install();
