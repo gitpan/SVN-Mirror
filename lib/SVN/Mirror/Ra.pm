@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.66';
+$VERSION = '0.67';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -492,13 +492,26 @@ The structure of mod_lists:
 	$editor->close_directory($root);
 	$editor->close_edit;
     } else {
-        my @mod_list = keys %{$editor->{mod_lists}};
+        my @mod_list = sort keys %{$editor->{mod_lists}};
+	# mark item as directory that we are sure about.
+	# do not use !isdir for deciding the item is _not_ a directory.
+	for my $parent (@mod_list) {
+	    for (@mod_list) {
+		next if $parent eq $_;
+		if (index ("$_/", "$parent/") == 0) {
+		    $editor->{mod_lists}{$parent}{isdir} = 1;
+		    last;
+		}
+	    }
+	}
         if ( ($self->{skip_to} && $self->{skip_to} <= $rev) ||
 	     grep { my $href = $editor->{mod_lists}{$_};
                     !( ( ($href->{action} eq 'A' || $href->{action} eq 'R')
-                         && defined $href->{local_rev}
-                         && $href->{local_rev} != -1
-                         && $href->{source_node_kind} == $SVN::Node::dir)
+                         && ((defined $href->{local_rev}
+			      && $href->{local_rev} != -1
+			      && $href->{source_node_kind} == $SVN::Node::dir)
+			     || ($href->{isdir})
+			    ))
                        || $href->{action} eq 'D' )
                 } @mod_list ) {
 	    my $pool = SVN::Pool->new_default_sub;
@@ -519,7 +532,7 @@ The structure of mod_lists:
 
             $edit->open_root ($self->{headrev});
 
-            foreach (sort @mod_list) {
+            foreach (@mod_list) {
                 my $href = $editor->{mod_lists}{$_};
                 my $action = $href->{action};
 
@@ -528,8 +541,13 @@ The structure of mod_lists:
                 }
 
                 if ($action eq 'A' || $action eq 'R') {
-                    $edit->copy_directory ($_, $href->{local_source_path},
-                                           $href->{local_rev});
+		    if (defined $href->{local_rev} && $href->{local_rev} != -1) {
+			$edit->copy_directory ($_, $href->{local_source_path},
+					       $href->{local_rev});
+		    }
+		    else {
+			$edit->add_directory($_);
+		    }
                     $edit->close_directory ($_);
 		}
 	    }
@@ -751,6 +769,10 @@ sub open_directory {
     print "MirrorEditor::open_directory($path)\n" if $debug;
     return undef unless $pb;
 
+    if ( ($self->_in_modified_list($path) || '') eq 'R') {
+	return $self->add_directory($path, $pb, undef, -1, $pool);
+    }
+
     my $dir_baton = $self->SUPER::open_directory ($path, $pb,
                                                   $self->{mirror}{headrev},
                                                   $pool);
@@ -769,6 +791,12 @@ sub open_file {
     my ($self,$path,$pb,undef,$pool) = @_;
     print "MirrorEditor::open_file($path)\n" if $debug;
     return undef unless $pb;
+    my $action = $self->_in_modified_list ($path);
+    if ($self->_under_latest_copypath ($path)
+	&& $self->_is_under_true_copy ($path)
+	&& !$action) {
+	return undef;
+    }
     $self->{opening} = $path;
     return $self->SUPER::open_file ($path, $pb,
 				    $self->{mirror}{headrev}, $pool);
@@ -1187,7 +1215,10 @@ sub delete_entry {
     my ($self, $path, $rev, $pb, $pool) = @_;
     print "MirrorEditor::delete_entry($path, $rev)\n" if $debug;
     return unless $pb;
-
+    if ($self->_under_latest_copypath($path)) {
+	my $action = $self->_in_modified_list($path) || '';
+	return unless $action eq 'D' || $action eq 'R';
+    }
     $self->SUPER::delete_entry ($path, $self->{mirror}{headrev},
 				$pb, $pool);
 }

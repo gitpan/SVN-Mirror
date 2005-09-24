@@ -1,3 +1,11 @@
+[Changes for 0.67 - Sep 25, 2005]
+* Fix a very complicated case for replaced directory with file
+  modification under it, where a deletion should also be ignored.
+
+* Relax the condition so that when we are sure a change
+  entry is a directory, we can use cheap editor calls
+  rather than run the whole do_update.
+
 [Changes for 0.66 - Aug 18, 2005]
 
 * Fix a regression when the mirrored revision has copies from revision
