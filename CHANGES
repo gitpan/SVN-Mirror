@@ -1,4 +1,14 @@
+[Changes for 0.68 - Dec 12, 2005]
+
+* Escape the copyfrom_path, as that's what is expected by svn api.
+
+* Fix a memory leak when mirroring changes with lots of copies.
+
+* Fix a problem that there is a replaced item with history that is out
+  of the mirror anchor.
+
 [Changes for 0.67 - Sep 25, 2005]
+
 * Fix a very complicated case for replaced directory with file
   modification under it, where a deletion should also be ignored.
 

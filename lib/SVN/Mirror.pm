@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.67';
+our $VERSION = '0.68';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
@@ -200,8 +200,8 @@ sub find_local_rev {
     # if uuid is the repository we talk to directly, return
     # null for revisions larger than what we have
     $uuid ||= $self->{source_uuid};
-    return if $uuid eq $self->{rsource_uuid} &&
-	$rrev > ($self->{working} || $self->{fromrev});
+    return if $uuid eq ($self->{rsource_uuid} || $self->{source_uuid})
+	&& $rrev > ($self->{working} || $self->{fromrev});
 
     my $pool = SVN::Pool->new_default ($self->{pool});
     my $fs = $self->{repos}->fs;

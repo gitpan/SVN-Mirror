@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.67';
+$VERSION = '0.68';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -413,6 +413,7 @@ The structure of mod_lists:
 
     $editor->{mod_lists} = {};
     foreach ( keys %$paths ) {
+	my $spool = SVN::Pool->new_default;
         my $item = $paths->{$_};
 	s/\n/ /g; # XXX: strange edge case
         my $href;
@@ -537,9 +538,12 @@ The structure of mod_lists:
                 my $action = $href->{action};
 
 		if ($action eq 'D' || $action eq 'R') {
-                    $edit->delete_entry ($_);
+		    # XXX: bad pool usage here, but svn::simple::edit sucks
+                    $edit->delete_entry($_);
                 }
 
+		# can't use a new pool for these, because we need to
+		# keep the parent.  switch to svk dynamic editor when we can
                 if ($action eq 'A' || $action eq 'R') {
 		    if (defined $href->{local_rev} && $href->{local_rev} != -1) {
 			$edit->copy_directory ($_, $href->{local_source_path},
@@ -769,9 +773,19 @@ sub open_directory {
     print "MirrorEditor::open_directory($path)\n" if $debug;
     return undef unless $pb;
 
-    if ( ($self->_in_modified_list($path) || '') eq 'R') {
-	return $self->add_directory($path, $pb, undef, -1, $pool);
+
+    if ( ($self->_in_modified_list($path) || '') eq 'R' ) {
+	# if the path is replaced with history, from outside the
+	# mirror anchor... HATE
+	my $bogus_copy = $self->_is_copy($path) && !defined $self->{mod_lists}{$path}{local_source_path};
+	if ($bogus_copy ) {
+	    $self->_create_new_copied_path ($path);
+	}
+	else {
+	    return $self->add_directory($path, $pb, undef, -1, $pool);
+	}
     }
+
 
     my $dir_baton = $self->SUPER::open_directory ($path, $pb,
                                                   $self->{mirror}{headrev},
@@ -876,8 +890,11 @@ sub _is_copy {
 sub _get_copy_path_rev {
     my ($self, $path) = @_;
 
-    return ( exists $self->{mod_lists}{$path} ) ?
-        @{$self->{mod_lists}{$path}}{qw/local_source_path local_rev/} : ();
+    return unless exists $self->{mod_lists}{$path};
+    my ($cp_path, $cp_rev) =
+        @{$self->{mod_lists}{$path}}{qw/local_source_path local_rev/};
+    use URI::Escape;
+    return (uri_escape($cp_path), $cp_rev);
 }
 
 # Given a path, return true if it's under the lastest visited copied path.
@@ -1065,7 +1082,7 @@ sub add_directory {
             # 1e.
             $self->delete_entry ($path,
                                  $self->{mirror}{headrev},
-                                 $pb);
+                                 $pb, $pool);
 
             my ($copypath, $copyrev) = $self->_get_copy_path_rev ($path);
             if (defined ($copyrev) && $copyrev >= 0) {
@@ -1193,7 +1210,7 @@ sub add_file {
             $method = 'open_file';
         } elsif ($action eq 'R') {
             # 1d.
-	    $self->delete_entry ($path, $self->{mirror}{headrev}, $pb);
+	    $self->delete_entry ($path, $self->{mirror}{headrev}, $pb, $_[-1]);
 	    # XXX: why should this fail and ignore the following applytext?
 #            return undef;
         }
