@@ -1,4 +1,6 @@
 #!/usr/bin/perl
+$ENV{LC_ALL} = 'C';
+
 use Test::More;
 use SVN::Mirror;
 use File::Path;
@@ -66,6 +68,7 @@ sub test_invalid_sync {
 }
 
 my @sync_tests = (
+#    skip_to /  to_rev  
     [undef,    undef,    [31,  1], [59, 29], 59],
     [1,        undef,    [31,  1], [59, 29], 59],
     [2,        undef,    [31,  2], [58, 29], 58],

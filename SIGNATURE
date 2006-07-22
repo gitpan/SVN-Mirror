@@ -1,5 +1,5 @@
 This file contains message digests of all files listed in MANIFEST,
-signed via the Module::Signature module, version 0.44.
+signed via the Module::Signature module, version 0.54.
 
 To verify the content in this distribution, first make sure you have
 Module::Signature installed, then type:
@@ -14,29 +14,29 @@ not run its Makefile.PL or Build.PL.
 -----BEGIN PGP SIGNED MESSAGE-----
 Hash: SHA1
 
-SHA1 1831ad02f03bda56ce4abb6bc7e2b561078fa053 CHANGES
-SHA1 95ef1a44f9e3d61adc823915553bc8d3aa353b5f MANIFEST
-SHA1 ed3084b8b4dfa015651514f8fd5729d9d3e58266 META.yml
+SHA1 f0886ba59b37c4ed68b6dbb129f4ff5d0b5e3c35 CHANGES
+SHA1 23e48135d0b5b7003113d58da2e119c1676409c3 MANIFEST
+SHA1 4414824e8c74d8375048bdf6d2fbfeaa783a9056 META.yml
 SHA1 ca742a231a710a42330efbdb91c1aafb3dbe2428 Makefile.PL
 SHA1 b39cfebf1c1d8e353e5c0a2628b94bd91d96ad66 README
 SHA1 76b454f5cd08b3d7e032640e071d4562ee58cf46 TODO
 SHA1 c483e9167721533601692a97dff2f50043e321c6 bin/svm
-SHA1 7338f67a9d2ef18cfa49a86cc1cdd9b8e1bf2ea4 inc/ExtUtils/AutoInstall.pm
-SHA1 c3eede479f51fb918d29215300c8a2936afc56d1 inc/Module/AutoInstall.pm
-SHA1 1e4040dd4b65f0201e92c0e188fa6aee752bdf43 inc/Module/Install.pm
-SHA1 5c2a4b50d06d4a7f96909f088681e9b243e96813 inc/Module/Install/AutoInstall.pm
-SHA1 a45428fa97024c5e514843c62cd9331146fc6c71 inc/Module/Install/Base.pm
-SHA1 70c4f0dacffe21bec19d99a5630a9c1d734f5647 inc/Module/Install/Can.pm
-SHA1 c3747aa4bd8faa530c974b78f729c67f15c6f928 inc/Module/Install/Fetch.pm
-SHA1 c6d2a330e2a8cb3a1db7bfc4236fea9a8aafe297 inc/Module/Install/Include.pm
-SHA1 7c4c75454de6369061f75335502a12223bf0e965 inc/Module/Install/Makefile.pm
-SHA1 9d8f99dffe9a7fd71901ab9b20de90ae7feb13bd inc/Module/Install/Metadata.pm
-SHA1 2e6f5004ac895a26c41f043bf8fa5efb4f5b21c4 inc/Module/Install/Scripts.pm
-SHA1 6b051a6d3ed824df40343a7ff09b66282e1783c3 inc/Module/Install/Win32.pm
-SHA1 77f82ce7c623e05304ac9aae05bcd1a5558fadbb inc/Module/Install/WriteAll.pm
-SHA1 8e7d352eac6022dcfd0c124fed9c985ce98a3341 lib/SVN/Mirror.pm
+SHA1 5b52cbdabc56a44e4c0a90a3f5a5609a90d26f84 inc/ExtUtils/AutoInstall.pm
+SHA1 e974f78178f53c88fb7e3f8d20f7df184d13e1d0 inc/Module/AutoInstall.pm
+SHA1 017bedfcba1e0c72b36301e6ef21b8712b84d175 inc/Module/Install.pm
+SHA1 bcfb15c6a158831c45b5100a7aa94e0f88fced9f inc/Module/Install/AutoInstall.pm
+SHA1 b1a70869c098ba602151631386fc510b5bfd3511 inc/Module/Install/Base.pm
+SHA1 dd7313db23119d49ae78593bfa576554fb5b0fd8 inc/Module/Install/Can.pm
+SHA1 7c3a5153a5574556d895f23e121a41e680da11c1 inc/Module/Install/Fetch.pm
+SHA1 2e9c012e58c778a4a83c5eaea20c3aed306ad0c5 inc/Module/Install/Include.pm
+SHA1 176d68fe7c07b6ab7cfe09093078b8127bbde786 inc/Module/Install/Makefile.pm
+SHA1 8b37b38215d14f922b3d5132ce33d11d21d531ba inc/Module/Install/Metadata.pm
+SHA1 1d8f4739eda5d665bbfe4206bd87274ad104ba77 inc/Module/Install/Scripts.pm
+SHA1 7eb44b00058c44795038d7fa4c0c77470f20a7f8 inc/Module/Install/Win32.pm
+SHA1 6d05967a5e1680b5f118315aaa6b8a1e143d79d8 inc/Module/Install/WriteAll.pm
+SHA1 feb04b4a8a22927f4ae504b1665e677578e3e10a lib/SVN/Mirror.pm
 SHA1 449ca0a583d96fbd9f4ee34433ce1f9baf1748bd lib/SVN/Mirror/Git.pm
-SHA1 1919b0056f72e126f4945ba0c5f648d46c53bd5d lib/SVN/Mirror/Ra.pm
+SHA1 3c28970e6c3b4f80524640164cd48cfbbf7fcb3e lib/SVN/Mirror/Ra.pm
 SHA1 31fc19f899164b467869bd5ddd46ffc6d94d6873 lib/SVN/Mirror/VCP.pm
 SHA1 0e2288e4ba90514fdb4838d4326d5af191422982 t/1use.t
 SHA1 eabb122b5ef3f5c8aec17e5e40cf72356747b68d t/2basic.t
@@ -45,7 +45,7 @@ SHA1 735f0d6a2fc4307ab6d58afb59febbe122fe4497 t/4vcp-p4.t
 SHA1 f00b8d3bcc213866cd0b60ba74219206af0e26c3 t/5upgrade.t
 SHA1 40f14d434436897a44224229ae6a8310cb07efc1 t/6relay.t
 SHA1 2fa016fb7d7c95acbc68f76614ff8d77352751c6 t/7copy.t
-SHA1 8650160860210e66fe65532a62898dcff506fbce t/8skipto-torev.t
+SHA1 fd97b77090572c7a738161bd931dc102a204b12b t/8skipto-torev.t
 SHA1 8eee14d6bf0372c00c30cd19697104425364cb1a t/9overlapping.t
 SHA1 7826a9aaaf8d9772d7bc3c72861f353c2b643cab t/copy.dump
 SHA1 ceac0d43bb5fcc858fb433856d0b05eae7bf9f35 t/cvs-test-data/CVSROOT/README
@@ -67,11 +67,11 @@ SHA1 ba58dcd964b6c209e6deb66187b7bd0580ac701e t/cvs-test-data/kuso/blah/Attic/zz
 SHA1 cb50adce4bd924942c1c0fea1466f52524bedd6d t/cvs-test-data/kuso/oldfile,v
 SHA1 03dcc4ebab3f6c864d588dd1301ec998eb337a39 t/cvs-test-data/kuso/staticfile,v
 SHA1 68545ba8db766551dce491f9c3f5e87f4b8a8d84 t/test_old.dump
-SHA1 5e3dfa993bb5089b418c5e8ffe79cacb93de099f t/test_repo.dump
+SHA1 ffc0ea18761dd17120116ebf5cdadb18d0db3555 t/test_repo.dump
 -----BEGIN PGP SIGNATURE-----
-Version: GnuPG v1.4.0 (FreeBSD)
+Version: GnuPG v1.4.3 (FreeBSD)
 
-iD8DBQFDnWGYk1XldlEkA5YRAu1QAJ9uUVzwGMQaz1SNXrCrg8L2g142UgCeMIQu
-oZN/LewGN/v+DKOqYM0efA4=
-=i3H6
+iD8DBQFEwXUwk1XldlEkA5YRAvXEAJ9tOJf3VWsLZzeRs0Gbbv+8yCNSOACdFcfQ
+qboskG5SS5LyokW6fFnw3xg=
+=4tUE
 -----END PGP SIGNATURE-----

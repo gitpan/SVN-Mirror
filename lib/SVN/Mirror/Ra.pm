@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.68';
+$VERSION = '0.69_1';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -90,7 +90,8 @@ sub init_state {
 
     # check if mirror source is already a mirror
     # older SVN::RA will return Reporter so prop would be undef
-    my (undef, undef, $prop) = $ra->get_dir ('', -1);
+    my (undef, undef, $prop) = eval { $ra->get_dir ('', -1) };
+    warn "Unable to read $ra->{url}, relay support disabled\n" if $@;
     if ($prop && $prop->{'svm:mirror'}) {
 	my $rroot;
 	for ($prop->{'svm:mirror'} =~ m/^.*$/mg) {
@@ -166,6 +167,7 @@ sub _new_ra {
     my ($self, %arg) = @_;
     $self->{config} ||= SVN::Core::config_get_config (undef, $self->{pool});
     $self->{auth} ||= $self->_new_auth;
+
     SVN::Ra->new( url => $self->{rsource},
 		  auth => $self->{auth},
 		  config => $self->{config},
@@ -359,7 +361,7 @@ sub mirror {
     $revmap = $self->_revmap ($rev, $ra) if $self->_relayed;
     $revmap ||= '';
 
-    my $editor = SVN::Mirror::Ra::MirrorEditor->new
+    my $editor = SVN::Mirror::Ra::NewMirrorEditor->new
 	($self->{repos}->get_commit_editor
 	 ('', $self->{target_path}, $author, $msg,
 	  sub { $newrev = $_[0];
@@ -369,20 +371,8 @@ sub mirror {
     $editor->{mirror} = $self;
 
     @{$self}{qw/cached_ra cached_ra_url/} = ($ra, $self->{rsource});
-    if ( ( $fromrev == 0
-# WTF do we need to check this?
-#           || !(defined $fromrev && $self->find_local_rev($fromrev, $self->{rsource_uuid}))
-         )
-         && $self->{rsource} ne $self->{rsource_root}
-       ) {
-	(undef, $editor->{anchor}, $editor->{target})
-	    = File::Spec::Unix->splitpath($editor->{anchor} || $self->{rsource});
-	chop $editor->{anchor};
-	$ra = $self->_new_ra ( url => $editor->{anchor} );
-	undef $self->{cached_ra}; # bizzare perlgc
-	@{$self}{qw/cached_ra cached_ra_url/} = ($ra, $editor->{anchor});
-    }
-    $self->{cached_life} ||= 100;
+
+    $self->{cached_life} ||= 100; # some leak in ra_dav, so reconnect every 100 revs
     $editor->{target} ||= '' if $SVN::Core::VERSION gt '0.36.0';
 
 =begin NOTES
@@ -475,15 +465,17 @@ The structure of mod_lists:
         if ( $_ eq $self->{rsource_path} or
 	     index ("$_/", "$self->{rsource_path}/") == 0 ) {
             $editor->{mod_lists}{$svn_lpath} = $href;
+            $editor->{mod_lists}{$svn_lpath}{path} = $svn_lpath;
         } elsif ($rrev != -1 && $href->{action} eq 'A' &&
 		 index ($self->{rsource_path}, "$_/") == 0) {
 	    # special case for the parent of the anchor is copied.
 	    my $reanchor = $self->{rsource_path};
+            my $path = length $svn_lpath ? "$svn_lpath/$reanchor" : $reanchor;
 	    $reanchor =~ s{^\Q$_\E/}{};
 	    $href->{remote_path} .= '/'.$reanchor;
 	    $href->{local_path} = $self->{target_path};
-            $editor->{mod_lists}{length $svn_lpath ? "$svn_lpath/$reanchor"
-				     : $reanchor} = $href;
+            $editor->{mod_lists}{$path} = $href;
+            $editor->{mod_lists}{$path}{path} = $path;
         }
     }
 
@@ -521,7 +513,13 @@ The structure of mod_lists:
             my $reporter =
                 $ra->do_update ($rev, $editor->{target} || '', 1, $editor);
 	    my @lock = $SVN::Core::VERSION ge '1.2.0' ? (undef) : ();
-            $reporter->set_path ('', $start, @lock, 0);
+
+	    if ($fromrev == 0 || $start == 0) {
+		$reporter->set_path ('', $rev, 1, @lock); # start_empty
+	    }
+	    else {
+		$reporter->set_path ('', $start, 0, @lock);
+	    }
 
             $reporter->finish_report ();
         } else {
@@ -571,6 +569,8 @@ The structure of mod_lists:
 
 sub _relayed { $_[0]->{rsource} ne $_[0]->{source} }
 
+sub _debug_args { map { $_ = '' if !defined($_) } @_ }
+
 sub get_merge_back_editor {
     my ($self, $path, $msg, $committed) = @_;
     die "relayed merge back not supported yet" if $self->_relayed;
@@ -608,7 +608,8 @@ sub get_latest_rev {
 	# vs svnserve 1.1, it retrieves all logs and leave the connection
 	# in an inconsistent state.
 	if ($SVN::Core::VERSION ge '1.2.0' && $self->{rsource} !~ m/^svn/) {
-	    $ra->get_log ([''], -1, 1, 1, 0, 1,
+	    my $_start = $self->{rsource} =~ m/^file/ ? 0 : -1;
+	    $ra->get_log ([''], -1, $_start, 1, 0, 1,
 			   sub { $rev = $_[1] });
 	}
 	else {
@@ -712,33 +713,11 @@ sub run {
 sub DESTROY {
 }
 
-package SVN::Mirror::Ra::MirrorEditor;
+package SVN::Mirror::Ra::NewMirrorEditor;
 our @ISA = ('SVN::Delta::Editor');
 use strict;
-our $debug = 0;
 
-=begin NOTES
-
-1. The path passed to methods in MirrorEditor is a relative path
-   under $self->{anchor} (if exists) or $self->{mirror}{source_root}.
-
-2. MirrorEditor can fetch usable information in $self->{mod_lists} if
-   exists.
-
-3. If we need to call other method in MirrorEditor, the path must be
-   in the style of #1 above.
-
-4. The diff text passed through network is patch-like.  If a directory
-   is copied, there needs to be one delete_entry() call for the original
-   directory, then a LOT of add_directory() and add_file() calls for
-   each one of directories and files underneath the new directory.
-
-   This behavior is easy to handle for a real file system, but hard to
-   work correct for another subversion repository.  A lot of code below,
-   especially in add_directory() and add_file(), are specialised for
-   handling different conditions.
-
-=cut
+#use Smart::Comments '###', '####';
 
 sub new {
     my $class = shift;
@@ -750,90 +729,70 @@ sub set_target_revision {
     return;
 }
 
-sub open_root {
-    my ($self, $remoterev, $pool) =@_;
-    print "MirrorEditor::open_root($remoterev)\n" if $debug;
-
-    # {copied_paths} stores paths that are copied.  Because there
-    # might be copied paths beneath another one, we need it to be an
-    # array.
-    $self->{copied_paths} = [ ];
-
-    # {visited_paths} keeps track of visited paths.  Parents at the
-    # beginning of array, and children the end.  '' means '/'.  $path
-    # passed to add_directory() and other methods are in the form of
-    # 'deep/path' instead of '/deep/path'.
-    $self->{visited_paths} = [ '' ];
-
-    $self->{root} = $self->SUPER::open_root($self->{mirror}{headrev}, $pool);
+# class method
+# _visited_path_item( $path, $pass_thru, $copied, $ref_mod )
+# ref_mod is the reference item in mod_list.
+sub _visited_path_item {
+    return { path      => shift,
+             pass_thru => shift,
+             copied    => shift,
+             ref_mod   => shift,
+           };
 }
 
-sub open_directory {
-    my ($self,$path,$pb,undef,$pool) = @_;
-    print "MirrorEditor::open_directory($path)\n" if $debug;
-    return undef unless $pb;
+# object method
+# visit_path( $path, @args )
+# @args are as the same as _visited_path_item().  '-inherit' for
+# inheriting from the counterpart of the last path.
+#
+# Call this method whenever a directory is entered.
+sub visit_path {
+    my ($self, $path) = (shift, shift);
 
+    my $last = $self->{visited_paths}[-1];
+    my @inherited = @$last{qw/pass_thru copied ref_mod/};
+    my @args = map { my $o = shift @inherited;
+                     ( ( $_ || '' ) eq '-inherit' ) ? $o : $_
+                 } @_;
+    push @{$self->{visited_paths}}, _visited_path_item( $path, @args );
 
-    if ( ($self->_in_modified_list($path) || '') eq 'R' ) {
-	# if the path is replaced with history, from outside the
-	# mirror anchor... HATE
-	my $bogus_copy = $self->_is_copy($path) && !defined $self->{mod_lists}{$path}{local_source_path};
-	if ($bogus_copy ) {
-	    $self->_create_new_copied_path ($path);
-	}
-	else {
-	    return $self->add_directory($path, $pb, undef, -1, $pool);
-	}
+    return $self;
+}
+
+# Call this method whenever a directory is left.
+sub leave_path {
+    my ($self) = @_;
+
+    my $last = $self->{visited_paths}[-1];
+    pop @{$self->{visited_paths}};
+
+    return $self;
+}
+
+sub is_pass_thru { $_[0]->{visited_paths}[-1]{pass_thru} }
+
+sub is_copied { $_[0]->{visited_paths}[-1]{copied} }
+
+sub _remove_entries_in_path {
+    my ($self, $path, $pb, $pool) = @_;
+
+    foreach ( sort grep $self->{mod_lists}{$_}{action} eq 'D',
+              keys %{$self->{mod_lists}} ) {
+        next unless m{^\Q$path\E/([^/]+)$};
+        $self->delete_entry ($_, -1, $pb, $pool);
     }
+}
 
+# Return undef if not in modified list, action otherwise.
+# 'A'dd, 'D'elete, 'R'eplace, 'M'odify
+sub _in_modified_list {
+    my ($self, $path) = @_;
 
-    my $dir_baton = $self->SUPER::open_directory ($path, $pb,
-                                                  $self->{mirror}{headrev},
-                                                  $pool);
-
-    push @{$self->{visited_paths}}, $path;
-
-    if ($self->_under_latest_copypath($path)) {
-        $self->_enter_new_copied_path();
-        $self->_remove_entries_in_path ($path, $dir_baton, $pool);
+    if (exists $self->{mod_lists}{$path}) {
+        return $self->{mod_lists}{$path}{action};
+    } else {
+        return;
     }
-
-    return $dir_baton;
-}
-
-sub open_file {
-    my ($self,$path,$pb,undef,$pool) = @_;
-    print "MirrorEditor::open_file($path)\n" if $debug;
-    return undef unless $pb;
-    my $action = $self->_in_modified_list ($path);
-    if ($self->_under_latest_copypath ($path)
-	&& $self->_is_under_true_copy ($path)
-	&& !$action) {
-	return undef;
-    }
-    $self->{opening} = $path;
-    return $self->SUPER::open_file ($path, $pb,
-				    $self->{mirror}{headrev}, $pool);
-}
-
-sub change_dir_prop {
-    my $self = shift;
-    my $baton = shift;
-    print "MirrorEditor::change_dir_prop($_[0], $_[1])\n" if $debug;
-    # filter wc specified stuff
-    return unless $baton;
-    return if $_[0] =~ /^svm:/;
-    return $self->SUPER::change_dir_prop ($baton, @_)
-	unless $_[0] =~ /^svn:(?:entry|wc):/;
-}
-
-sub change_file_prop {
-    my $self = shift;
-    print "MirrorEditor::change_file_prop($_[1], $_[2])\n" if $debug;
-    # filter wc specified stuff
-    return unless $_[0];
-    return $self->SUPER::change_file_prop (@_)
-	unless $_[1] =~ /^svn:(?:entry|wc):/;
 }
 
 # From source to target.  Given a path what svn lib gives, get a path
@@ -856,22 +815,12 @@ sub _translate_rel_path {
 
 }
 
-sub _remove_entries_in_path {
-    my ($self, $path, $pb, $pool) = @_;
-
-    foreach ( sort grep $self->{mod_lists}{$_}{action} eq 'D',
-              keys %{$self->{mod_lists}} ) {
-        next unless m{^\Q$path\E/([^/]+)$};
-        $self->delete_entry ($_, -1, $pb, $pool);
-    }
-}
-
 # If there's modifications under specified path, return true.
 sub _contains_mod_in_path {
     my ($self, $path) = @_;
 
     foreach ( reverse sort keys %{$self->{mod_lists}} ) {
-        return $_
+        return $self->{mod_lists}{$_}
             if index ($_, $path, 0) == 0;
     }
 
@@ -897,88 +846,160 @@ sub _get_copy_path_rev {
     return (uri_escape($cp_path), $cp_rev);
 }
 
-# Given a path, return true if it's under the lastest visited copied path.
-sub _under_latest_copypath {
-    my ($self, $path) = @_;
+sub open_root {
+    my ($self, $remoterev, $pool) =@_;
+    ### open_root()...
+    ### $remoterev
 
-    return (@{$self->{copied_paths}} &&
-            index ($path, $self->{copied_paths}[-1]{path}, 0) == 0);
+    # {visited_paths} keeps track of visited paths.  Parents at the
+    # beginning of array, and children the end.  '' means '/'.  $path
+    # passed to add_directory() and other methods are in the form of
+    # 'deep/path' instead of '/deep/path'.
+    $self->{visited_paths} = [ _visited_path_item( '', undef) ];
+
+    $self->{root} = $self->SUPER::open_root($self->{mirror}{headrev}, $pool);
 }
 
-# Return undef if not in modified list, action otherwise.
-# 'A'dd, 'D'elete, 'R'eplace, 'M'odify
-sub _in_modified_list {
-    my ($self, $path) = @_;
+sub open_file {
+    my ($self,$path,$pb,undef,$pool) = @_;
+    ### open_file()...
+    ### $path
+    return undef unless $pb;
 
-    if (exists $self->{mod_lists}{$path}) {
-        return $self->{mod_lists}{$path}{action};
+    my $action = $self->_in_modified_list ($path);
+    ### Action for path is action...
+    ### $path
+    ### $action
+    if ( $self->is_pass_thru() && !$action ) {
+        #### Skip this file...
+        return undef;
+    }
+    $self->{opening} = $path;
+    return $self->SUPER::open_file ($path, $pb,
+				    $self->{mirror}{headrev}, $pool);
+}
+
+sub change_dir_prop {
+    my $self = shift;
+    my $baton = shift;
+    ### change_dir_prop()...
+    ### $_[0]
+    ### $_[1]
+
+    # filter wc specified stuff
+    return unless $baton;
+    return if $_[0] =~ /^svm:/;
+    return if $_[0] =~ /^svn:(?:entry|wc):/;
+    ++$self->{changes};
+    return $self->SUPER::change_dir_prop ($baton, @_)
+}
+
+sub change_file_prop {
+    my $self = shift;
+    ### change_file_prop()...
+    ### $_[1]
+    ### $_[2]
+
+    # filter wc specified stuff
+    return unless $_[0];
+    return if $_[1] =~ /^svn:(?:entry|wc):/;
+    ++$self->{changes};
+    return $self->SUPER::change_file_prop (@_)
+}
+
+sub apply_textdelta {
+    my $self = shift;
+    return undef unless $_[0];
+    ### apply_textdelta()...
+    ### $_[0]
+
+    $self->SUPER::apply_textdelta (@_);
+}
+
+sub open_directory {
+    my ($self,$path,$pb,undef,$pool) = @_;
+    ### open_directory()...
+    ### $path
+    return undef unless $pb;
+
+    if ( ($self->_in_modified_list($path) || '') eq 'R' ) {
+        ### Found an R item...
+	# if the path is replaced with history, from outside the
+	# mirror anchor... HATE
+	my $bogus_copy = $self->_is_copy($path) && !defined $self->{mod_lists}{$path}{local_source_path};
+	if ($bogus_copy ) {
+            ##### Is a bogus...
+	    $self->visit_path( $path,
+			       0, 1, # copy but source not in local
+			       $self->{mod_lists}{$path} );
+	}
+	else {
+            ##### Call add_directory()...
+	    return $self->add_directory($path, $pb, undef, -1, $pool);
+	}
+    }
+
+    my $dir_baton = $self->SUPER::open_directory ($path, $pb,
+                                                  $self->{mirror}{headrev},
+                                                  $pool);
+
+    $self->visit_path( $path, '-inherit', '-inherit', '-inherit' );
+    ### Visit info for this path: $self->{visited_paths}[-1]
+
+    if ($self->is_pass_thru()) {
+        ### Under latest copy, remove entries under path...
+        # $self->_enter_new_copied_path();
+        $self->_remove_entries_in_path ($path, $dir_baton, $pool);
+    }
+
+    return $dir_baton;
+}
+
+# Return an array of two elements: if pass thru and if copied.
+sub _visit_info_for_dir {
+    my $copyrev = shift;
+
+    if ( !defined($copyrev) ) {
+        ### Copy source is not in local depot...
+        return ( 0, 1 );                # copy but source not in local
+    } elsif ( $copyrev == -1 ) {
+        ### Usual action...
+        return ( 0, 0 );                # not a copy
     } else {
-        return;
+        ### Copy source is in local depot...
+        return ( 1, 1 );                # copy with source in local
     }
 }
 
-sub _is_under_copy { return scalar @{$_[0]->{copied_paths}} }
+=comment
 
-# Given a path, return true if the the path is under a copied path
-# which has a valid source in local repo.  Otherwise return false.
-sub _is_under_true_copy {
-    my ($self, $path) = @_;
+Please keep in mind that subversion's update editor is optimized for
+file system.  That's why we need to keep many data in add_directory()
+because we need to deal with many different situations.
 
-    return unless scalar @{$self->{copied_paths}};
+It means open_directory() or add_directory() (as well as counterparts
+for files) is called depends on the existence of the target directory.
+An add_diectory() call in a file system may be not necessary in a
+repostiroy.  If a directory is copied from another directory in a
+repository, every directory or file under it needs a add_directory()
+or add_file() call, but absolutely not necessary in another
+repository, since they are brought automatically by the copy
+operation.  If some entries are deleted under the copied diectory, no
+add_directory() and add_file() is necessary in a file system, but
+explicit calls to delete_entry() are needed in a repository.
 
-    $path = $self->{copied_paths}[-1]{path};
-    return $self->{mod_lists}{$path}{local_rev};
-}
-
-# Given a path, return true if the the path is under a copied path
-# which has no valid source in local repo.  Otherwise return false.
-sub _is_under_false_copy {
-    my ($self, $path) = @_;
-
-    return unless scalar @{$self->{copied_paths}};
-
-    $path = $self->{copied_paths}[-1]{path};
-    return !defined ($self->{mod_lists}{$path}{local_source_path});
-}
-
-# The following three methods are used to keep tracks of copied paths.
-#  _create_new_copied_path($path): call this when you are ready to enter
-#      a new copied path.
-#  _enter_new_copied_path(): call this when enter a directory under a
-#      copied path.  Use _is_under_true_copy() to see if it is true.
-#  _leave_new_copied_path(): call this when leave a directory under a
-#      copied path.  Use _is_under_true_copy() to see if it is true.
-sub _create_new_copied_path {
-    my $self = shift;
-    my $path = shift;
-
-    push @{$self->{copied_paths}}, { path => $path,
-                                     child_depth => 0 };
-}
-
-sub _enter_new_copied_path { $_[0]->{copied_paths}[-1]{child_depth}++ }
-
-sub _leave_new_copied_path {
-    my $self = shift;
-
-    if ($self->{copied_paths}[-1]{child_depth} == 0) {
-        pop @{$self->{copied_paths}};
-    } else {
-        $self->{copied_paths}[-1]{child_depth}--;
-    }
-}
+=cut
 
 sub add_directory {
     my $self = shift;
     my $path = shift;
     my $pb = shift;
-    my ($cp_path,$cp_rev,$pool) = @_;
-    if ($debug) {
-        my ($cp_path, $cp_rev) = $self->_get_copy_path_rev( $path );
-        $cp_path = "" unless defined $cp_path;
-        $cp_rev = "" unless defined $cp_rev;
-        print "MirrorEditor::add_directory($path, $cp_path, $cp_rev)\n";
-    }
+    my (undef,undef,$pool) = @_;
+    my ($copypath, $copyrev) = $self->_get_copy_path_rev( $path );
+    ### add_directory()...
+    ### $path
+    ### $copypath
+    ### $copyrev
     return undef unless $pb;
 
     # rules:
@@ -998,251 +1019,238 @@ sub add_directory {
     #       * Ignore unconditionally.
     # under copied path, without local copy source:
     #   ( add_directory() unconditionally )
-    #
-    # re-organize:
-    # The path is equal to $self->{target}:
-    #   * open_directory().
-    # under copied path, without local copy source:
-    #   * add_directory() unconditionally
-    # under copied path, with local copy source, and not in mod_lists:
-    #   * Modifications in the path:
-    #     * open_directory().
-    #   * No modification in the path:
-    #     * Ignore unconditionally.
-    # in mod_lists:
-    #   * A: add_directory()
-    #   * M: open_directory()
-    #   * R: delete_entry($path), add_directory()
-    # else:
-    #   raise an error, let others have a chance to give me complains.
-    #
-    # Rules for 'A', 'M', and 'R':
-    # 1. If the path is in the modified list:
-    #  action is 'A': 
-    #   1a. The source rev is undef, meaning the copy source is not in
-    #       local depo.  Pass whatever underneath the path 
-    #       unconditionally.
-    #   1b. The source rev is an positive integer.  Use add_directory
-    #       method.
-    #   1c. The source rev is -1, don't tweak @_.  Use add_directory method.
-    #  action is 'M':
-    #   1d. If the action is 'M', tweak @_ and use open_directory.
-    #  action is 'R':
-    #   1e. delete the entry first.  If the path has source rev,
-    #       supply source path and revision to add_directory.
 
     my $method = 'add_directory';
-    my $is_copy = 0;
     my $action = $self->_in_modified_list ($path);
+    my $do_remove_items = undef;
     if (defined $self->{mirror}{skip_to} &&
         $self->{mirror}{skip_to} >= $self->{mirror}{working}) {
         # no-op.
-    } elsif ($self->_under_latest_copypath ($path)
-            && $self->_is_under_false_copy ($path)) {
-        # no-op. add_directory().
-        $self->_enter_new_copied_path ();
-    } elsif ($self->_under_latest_copypath ($path)
-             && $self->_is_under_true_copy ($path)
-             && !$action) {
-        if ($self->_contains_mod_in_path ($path)) {
-            $is_copy = 1;
-            $method = 'open_directory';
-            $self->_enter_new_copied_path ();
-        } else {
-            # don't do anything.
-            return;
-        }
-    } elsif ($action) {
+    } elsif ( $action ) {
+        ### Change item.  Action : $action
         my $item = $self->{mod_lists}{$path};
+        ### More info: $item
 
-        if ($action eq 'A') {
-            my ($copypath, $copyrev) = $self->_get_copy_path_rev ($path);
-
-            if (!defined($copyrev)) {
-                # 1a.
-                $self->_create_new_copied_path ($path);
-            } elsif ($copyrev == -1) {
-                # 1c.
-                $self->_enter_new_copied_path ()
-                    if $self->_is_under_copy ();
-            } else {
-                # 1b.
-                $is_copy = 1;
+        my @visit_info;
+        if ( $action eq 'A' ) {
+            ### Add a directory...
+            @visit_info = _visit_info_for_dir( $copyrev );
+            if ( $visit_info[0] && $visit_info[1] ) {
+                $do_remove_items = 1;
                 splice (@_, 0, 2, $copypath, $copyrev);
-
-                $self->_create_new_copied_path ($path);
             }
-        } elsif ($action eq 'M') {
-            # 1d.
+            push @visit_info, $item;
+        } elsif ( $action eq 'M' ) {
+            ### Modify a directory...
             $method = 'open_directory';
-
-            $self->_enter_new_copied_path ()
-                if $self->_under_latest_copypath ($path);
-        } elsif ($action eq 'R') {
-            # 1e.
+            @visit_info = ( '-inherit', # as parent
+                            '-inherit', # as parent
+                            $item
+                          );
+	    $do_remove_items = 1;
+        } elsif ( $action eq 'R' ) {
+            ### Replace a directory...
             $self->delete_entry ($path,
                                  $self->{mirror}{headrev},
                                  $pb, $pool);
 
-            my ($copypath, $copyrev) = $self->_get_copy_path_rev ($path);
-            if (defined ($copyrev) && $copyrev >= 0) {
-                $is_copy = 1;
+            @visit_info = _visit_info_for_dir( $copyrev );
+            if ( $visit_info[0] && $visit_info[1] ) {
+                $do_remove_items = 1;
                 splice (@_, 0, 2, @$item{qw/local_source_path local_rev/});
-                $self->_create_new_copied_path ($path);
-            } elsif ( !defined ($copyrev) ) {
-                $self->_create_new_copied_path ($path);
             }
-	    else {
-		$self->_enter_new_copied_path ()
-		    if $self->_under_latest_copypath ($path);
-	    }
+            push @visit_info, $item;
         }
+        $self->visit_path( $path, @visit_info );
+    } elsif ( $self->is_pass_thru() ) {
+        ### Is pass thru...
+
+        # We are supposed to pass everything, but check if we have
+        # modifications under current path.
+        if ( (my $ref_mod = $self->_contains_mod_in_path ($path)) ) {
+            ### Contains modifications under path...
+            #### ref_mod : $ref_mod
+            $do_remove_items = 1;
+            if ( $ref_mod->{path} ne $path ) { $ref_mod = undef }
+            $self->visit_path( $path,
+                               '-inherit',   # should not pass thru
+                               '-inherit',       # yes, copied
+                               $ref_mod # whatever previous node is
+                             );
+            $method = 'open_directory';
+        } else {
+            ### No modifications under path.  Bypass anything under it...
+            return;
+        }
+    } elsif ( $self->is_copied() ) {
+        ### Not pass thru, but is copied.  Modifications under path...
+        $method = 'open_directory';
+        $self->visit_path( $path,
+                           '-inherit',  # pass_thru
+                           '-inherit',  # copied
+                           '-inherit'   # ref_mod
+                         );
     } else {
-        # raise error.
-        die "Oh no, no more exceptions!  add_directory() failed.";
+        my $item = $self->{mod_lists}{$path};
+        ### path is not catched by conditionals...
+        ### Action : $action
+        ### Mod item : $item
+        ### Last item in visited paths : $self->{visited_paths}[-1]
+        $self->visit_path( $path,
+                           '-inherit',  # pass_thru
+                           '-inherit',  # copied
+                           '-inherit'   # ref_mod
+                         );
     }
 
-    $method = "open_directory" if $path eq $self->{target};
+    ### Visit info for this path: $self->{visited_paths}[-1]
 
-    push @{$self->{visited_paths}}, $path;
+    $method = "open_directory" if $path eq $self->{target};
     my $tran_path = $self->_translate_rel_path ($path);
 
     $method = 'open_directory'
         if $tran_path eq $self->{mirror}{target_path};
 
-    splice @_, 0, 2, $self->{mirror}{headrev}
-	if $method eq "open_directory";
-
     my $dir_baton;
-    $method = "SUPER::$method";
-    $dir_baton = $self->$method($tran_path, $pb, @_);
+    if ( $method eq 'open_directory' ) {
+        my @args = @_;
+        splice @args, 0, 2, $self->{mirror}{headrev};
+        $dir_baton = eval {
+            $self->SUPER::open_directory ($tran_path, $pb, @args);
+        };
+        if ( $@ ) {
+            $dir_baton = $self->SUPER::add_directory ($tran_path, $pb, @_);
+        }
+    } else {
+        $dir_baton = $self->SUPER::add_directory ($tran_path, $pb, @_);
+    }
 
-    # Always 'touch' the directory, even for empty modifications.
-    $self->change_dir_prop ( $dir_baton, 'svm' => undef, $pool );
+    $self->_remove_entries_in_path ($path, $dir_baton, $pool) if $do_remove_items;
 
-    $self->_remove_entries_in_path ($path, $dir_baton, $pool) if $is_copy;
+    ++$self->{changes};
 
     return $dir_baton;
-}
-
-sub apply_textdelta {
-    my $self = shift;
-    return undef unless $_[0];
-    print "MirrorEditor::apply_textdelta($_[0])\n" if $debug;
-
-    $self->SUPER::apply_textdelta (@_);
-}
-
-sub close_directory {
-    my $self = shift;
-    my $baton = shift;
-    print "MirrorEditor::close_directory()\n" if $debug;
-    return unless $baton;
-
-    my $path = pop @{$self->{visited_paths}};
-
-    $self->_leave_new_copied_path ()
-        if $self->_under_latest_copypath ($path);
-        
-    $self->SUPER::close_directory ($baton, @_);
-}
-
-sub close_file {
-    my $self = shift;
-    print "MirrorEditor::close_file()\n" if $debug;
-    return unless $_[0];
-    $self->SUPER::close_file(@_);
 }
 
 sub add_file {
     my $self = shift;
     my $path = shift;
     my $pb = shift;
-    if ($debug) {
-        my ($cp_path, $cp_rev) = $self->_get_copy_path_rev( $path );
-        $cp_path = "" unless defined $cp_path;
-        $cp_rev = "" unless defined $cp_rev;
-        print "MirrorEditor::add_file($path, $cp_path, $cp_rev)\n" if $debug;
-    }
+    my ($copypath, $copyrev) = $self->_get_copy_path_rev( $path );
+    ### add_file()...
+    ### $path
+    ### $copypath
+    ### $copyrev
     return undef unless $pb;
 
-    # rules:
-    # 1. If the path is in the modified list:
-    #  1a. If the path is a copy, source path and rev must be
-    #      specified, and use add_file method. (action could be 'A' or
-    #      'R')
-    #  1b. If the path is not a copy, don't tweak @_.  Use add_file
-    #      method. (action could be 'A' or 'R')
-    #  1c. If the action is 'M', tweak @_ and use open_file.
-    #  1d. If the action is 'R', delete the entry first.  Then do
-    #      proper method.
-    # 2. The path is not in the modified list, which means one of its
-    #    parent directory must be copied from other place:
-    #  2a: If the path is not copied from a directory which exists in
-    #      local depot, pass it unconditionally.
-    #  2b: If the path is under the latest visited copied path, reject
-    #      the file.
-    #  2c: Reject the file
     my $method = 'add_file';
     my $action = $self->_in_modified_list ($path);
     if ((defined $self->{mirror}{skip_to}
-         && $self->{mirror}{skip_to} >= $self->{mirror}{working})
-        || ($self->_under_latest_copypath ($path)
-            && $self->_is_under_false_copy ($path)) ) {
-        # no-op. add_file().
-    } elsif ($self->_under_latest_copypath ($path)
-             && $self->_is_under_true_copy ($path)
-             && !$action) {
-        # ignore the path.
-        return;
-    } elsif ($action) {
-        my ($copypath, $copyrev) = $self->_get_copy_path_rev ($path);
+         && $self->{mirror}{skip_to} >= $self->{mirror}{working})) {
+        ### Skiped...
+        # no-op.  add_file().
+    } elsif ( $action ) {
+        ### With action: $action
         if ( !defined($copyrev) || $copyrev == -1) {
-            # 1b. no-op
+            # no-op
         } else {
-            # 1a.
+            ### Come with a copy source.  Use its information...
+            ### $copypath
+            ### $copyrev
             splice (@_, 0, 2, $copypath, $copyrev);
         }
 
         if ($action eq 'M') {
-            # 1c.
-            splice @_, 0, 2, $self->{mirror}{headrev};
+            ### Modify...
+            # splice @_, 0, 2, $self->{mirror}{headrev};
             $method = 'open_file';
         } elsif ($action eq 'R') {
-            # 1d.
+            ### Replace...
 	    $self->delete_entry ($path, $self->{mirror}{headrev}, $pb, $_[-1]);
-	    # XXX: why should this fail and ignore the following applytext?
-#            return undef;
         }
+    } elsif ( $self->is_pass_thru() ) {
+        ### Pass thru, and not in mod list.  SKip it...
+        return;
+    } elsif ( $self->is_copied() ) {
+        ### path is copied from somewhere.  Accept it...
+        # no-op.
     } else {
-        # raise error.
-        die "Oh no, no more exceptions!  add_file() failed.";
+        my $item = $self->{mod_lists}{$path};
+        ### path is not catched by conditionals...
+        ### Action : $action
+        ### Mod item : $item
+        ### Last item in visited paths : $self->{visited_paths}[-1]
     }
 
     my $tran_path = $self->_translate_rel_path ($path);
 
-    if ($method eq 'add_file') {
-        $self->SUPER::add_file ($tran_path, $pb, @_);
-    } else {
-        $self->SUPER::open_file ($tran_path, $pb, @_);
+    # Why try open_file() first then add_file() later?  I saw a weird
+    # rev which looks like:
+    #
+    #   A  /path
+    #   A  /path/foo
+    #   M  /path/bar
+    #   A  /path/baz
+    #
+    # /path/bar should be A because /path is A.  Anyway, to accept
+    # this rev, falling back to add_file() if open_file() fails will
+    # do.
+    #
+    # - plasma
+    ++$self->{changes};
+    if ($method eq 'open_file') {
+        my @args = @_;
+        splice @args, 0, 2, $self->{mirror}{headrev};
+        my $res = eval {
+            $self->SUPER::open_file ($tran_path, $pb, @args);
+        };
+        if (!$@) { return $res }
     }
+
+    $self->SUPER::add_file ($tran_path, $pb, @_);
+}
+
+sub close_directory {
+    my $self = shift;
+    my $baton = shift;
+    ### close_directory()...
+    ### $self->{visited_paths}[-1]{path}
+    return unless $baton;
+
+    $self->leave_path();
+
+    # 'touch' the root if there's no change.
+    $self->change_dir_prop ( $baton, 'svm' => undef )
+	unless $self->{changes};
+
+    $self->SUPER::close_directory ($baton, @_);
+}
+
+sub close_file {
+    my $self = shift;
+    ### close_file()...
+    return unless $_[0];
+    $self->SUPER::close_file(@_);
 }
 
 sub delete_entry {
     my ($self, $path, $rev, $pb, $pool) = @_;
-    print "MirrorEditor::delete_entry($path, $rev)\n" if $debug;
+    ### delete_entry()...
+    ### $path
+    ### $rev
     return unless $pb;
-    if ($self->_under_latest_copypath($path)) {
+    if ( $self->is_pass_thru() ) {
 	my $action = $self->_in_modified_list($path) || '';
 	return unless $action eq 'D' || $action eq 'R';
     }
+    ++$self->{changes};
     $self->SUPER::delete_entry ($path, $self->{mirror}{headrev},
 				$pb, $pool);
 }
 
 sub close_edit {
     my ($self, $pool) = @_;
-    print "MirrorEditor::close_edit()\n" if $debug;
+    ### close_edit()...
 
     unless ($self->{root}) {
         # If we goes here, this must be an empty revision.  We must

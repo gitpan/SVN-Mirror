@@ -1,3 +1,13 @@
+[Changes for 0.69_1 - Jul 22, 2005]
+
+* Major overhaul of the mirror editor. [plasma]
+
+* When remote repository disallows property reading on '/', fallback
+  to normal mirror.
+
+* Workaround different behaviour of ra backends in ra->get_logs start
+  argument, which causes skipto to fail for some repositories.
+
 [Changes for 0.68 - Dec 12, 2005]
 
 * Escape the copyfrom_path, as that's what is expected by svn api.
