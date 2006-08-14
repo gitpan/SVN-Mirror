@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.69_2';
+$VERSION = '0.69_3';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -1140,7 +1140,7 @@ sub add_directory {
 	# current rev, which is unusable if we are reconstructing the
 	# copy.
         my $item = $self->{mod_lists}{$path};
-	my $ra = $self->{mirror}->_new_ra( url => "$self->{mirror}{source}/$path" );
+	my $ra = $self->{mirror}->_new_ra( url => "$self->{mirror}{source_root}$item->{remote_path}" );
 	my $compeditor = SVN::Mirror::Ra::CompositeEditor->new
 	    ( master_editor => $self,
 	      anchor => $tran_path, anchor_baton => $dir_baton );

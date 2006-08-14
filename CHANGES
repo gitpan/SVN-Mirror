@@ -1,3 +1,8 @@
+[Changes for 0.69_3 - Aug 14, 2006]
+
+* Fix bugs mirroring revisions containing replace with history, that
+  is from different path.
+
 [Changes for 0.69_2 - Aug 14, 2006]
 
 * Fix bugs mirroring revisions containing replace with history.
