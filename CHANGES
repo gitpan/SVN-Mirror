@@ -1,4 +1,10 @@
-[Changes for 0.69_1 - Jul 22, 2005]
+[Changes for 0.69_2 - Aug 14, 2006]
+
+* Fix bugs mirroring revisions containing replace with history.
+
+* When there is no change, only touch in root.
+
+[Changes for 0.69_1 - Jul 22, 2006]
 
 * Major overhaul of the mirror editor. [plasma]
 

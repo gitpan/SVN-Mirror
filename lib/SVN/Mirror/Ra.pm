@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.69_1';
+$VERSION = '0.69_2';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -996,6 +996,7 @@ sub add_directory {
     my $pb = shift;
     my (undef,undef,$pool) = @_;
     my ($copypath, $copyrev) = $self->_get_copy_path_rev( $path );
+    my $crazy_replace;
     ### add_directory()...
     ### $path
     ### $copypath
@@ -1050,6 +1051,7 @@ sub add_directory {
 	    $do_remove_items = 1;
         } elsif ( $action eq 'R' ) {
             ### Replace a directory...
+	    ++$crazy_replace;
             $self->delete_entry ($path,
                                  $self->{mirror}{headrev},
                                  $pb, $pool);
@@ -1059,6 +1061,7 @@ sub add_directory {
                 $do_remove_items = 1;
                 splice (@_, 0, 2, @$item{qw/local_source_path local_rev/});
             }
+	    $visit_info[0] = 0; # don't pass thru for crazy replace
             push @visit_info, $item;
         }
         $self->visit_path( $path, @visit_info );
@@ -1128,6 +1131,28 @@ sub add_directory {
     $self->_remove_entries_in_path ($path, $dir_baton, $pool) if $do_remove_items;
 
     ++$self->{changes};
+
+    if ($crazy_replace) {
+	# When there's a replace with history, we need to replay the
+	# diff between the base (which we reconstruct the replace
+	# with) and the actual new revision.  The problem is that
+	# do_update gives us only the delta between our fromrev and
+	# current rev, which is unusable if we are reconstructing the
+	# copy.
+        my $item = $self->{mod_lists}{$path};
+	my $ra = $self->{mirror}->_new_ra( url => "$self->{mirror}{source}/$path" );
+	my $compeditor = SVN::Mirror::Ra::CompositeEditor->new
+	    ( master_editor => $self,
+	      anchor => $tran_path, anchor_baton => $dir_baton );
+	my ($reporter) =
+	    $ra->do_diff($self->{mirror}{working}, '', 1, 1,
+			 "$self->{mirror}{source}/$path", $compeditor);
+	my @lock = $SVN::Core::VERSION ge '1.2.0' ? (undef) : ();
+	$reporter->set_path('', $item->{remote_rev}, 0, @lock);
+	$reporter->finish_report ();
+
+	return undef;
+    }
 
     return $dir_baton;
 }
@@ -1221,7 +1246,7 @@ sub close_directory {
 
     # 'touch' the root if there's no change.
     $self->change_dir_prop ( $baton, 'svm' => undef )
-	unless $self->{changes};
+	if $baton eq $self->{root} && !$self->{changes};
 
     $self->SUPER::close_directory ($baton, @_);
 }
@@ -1265,5 +1290,40 @@ sub close_edit {
     $self->{mirror}->lock ('mirror');
     $self->SUPER::close_edit ($pool);
 }
+
+package SVN::Mirror::Ra::CompositeEditor;
+our @ISA = ('SVN::Delta::Editor');
+# XXX: this is from svk, should be merged
+
+sub AUTOLOAD {
+    my ($self, @arg) = @_;
+    my $func = our $AUTOLOAD;
+    $func =~ s/^.*:://;
+
+    if ($func =~ m/^(?:add|open|delete)/) {
+        return $self->{target_baton}
+            if defined $self->{target} && $arg[0] eq $self->{target};
+        $arg[0] = length $arg[0] ?
+            "$self->{anchor}/$arg[0]" : $self->{anchor};
+    }
+    elsif ($func =~ m/^close_(?:file|directory)/) {
+        if (defined $arg[0]) {
+            return if $arg[0] eq $self->{anchor_baton};
+            return if defined $self->{target_baton} &&
+                $arg[0] eq $self->{target_baton};
+        }
+    }
+
+    $self->{master_editor}->$func(@arg);
+}
+
+sub set_target_revision {}
+
+sub open_root {
+    my ($self, $base_revision) = @_;
+    return $self->{anchor_baton};
+}
+
+sub close_edit {}
 
 1;
