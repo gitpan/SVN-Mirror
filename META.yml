@@ -16,4 +16,4 @@ requires:
   SVN::Simple::Edit: 0
   Term::ReadKey: 0
   URI::Escape: 0
-version: 0.69_3
+version: 0.70

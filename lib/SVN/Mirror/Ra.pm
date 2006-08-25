@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.69_3';
+$VERSION = '0.70';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -367,6 +367,7 @@ sub mirror {
 	  sub { $newrev = $_[0];
 		$self->committed ($revmap, $date, $rev, @_) }));
 
+    # $editor->{_debug}++;
     $self->{working} = $rev;
     $editor->{mirror} = $self;
 
@@ -543,14 +544,15 @@ The structure of mod_lists:
 		# can't use a new pool for these, because we need to
 		# keep the parent.  switch to svk dynamic editor when we can
                 if ($action eq 'A' || $action eq 'R') {
+		    my $ret;
 		    if (defined $href->{local_rev} && $href->{local_rev} != -1) {
-			$edit->copy_directory ($_, $href->{local_source_path},
-					       $href->{local_rev});
+			$ret = $edit->copy_directory( $_, $href->{local_source_path},
+						      $href->{local_rev});
 		    }
 		    else {
-			$edit->add_directory($_);
+			$ret = $edit->add_directory($_);
 		    }
-                    $edit->close_directory ($_);
+                    $edit->close_directory($_) if $ret;
 		}
 	    }
             $edit->close_edit ();
@@ -874,7 +876,11 @@ sub open_file {
         #### Skip this file...
         return undef;
     }
-    $self->{opening} = $path;
+    if ( ($action || '') eq 'R' ) {
+	return $self->add_file($path, $pb, undef, -1, $pool);
+    }
+
+    ++$self->{changes};
     return $self->SUPER::open_file ($path, $pb,
 				    $self->{mirror}{headrev}, $pool);
 }
@@ -890,7 +896,6 @@ sub change_dir_prop {
     return unless $baton;
     return if $_[0] =~ /^svm:/;
     return if $_[0] =~ /^svn:(?:entry|wc):/;
-    ++$self->{changes};
     return $self->SUPER::change_dir_prop ($baton, @_)
 }
 
@@ -903,7 +908,6 @@ sub change_file_prop {
     # filter wc specified stuff
     return unless $_[0];
     return if $_[1] =~ /^svn:(?:entry|wc):/;
-    ++$self->{changes};
     return $self->SUPER::change_file_prop (@_)
 }
 
@@ -952,6 +956,7 @@ sub open_directory {
         $self->_remove_entries_in_path ($path, $dir_baton, $pool);
     }
 
+    ++$self->{changes};
     return $dir_baton;
 }
 
@@ -1051,7 +1056,6 @@ sub add_directory {
 	    $do_remove_items = 1;
         } elsif ( $action eq 'R' ) {
             ### Replace a directory...
-	    ++$crazy_replace;
             $self->delete_entry ($path,
                                  $self->{mirror}{headrev},
                                  $pb, $pool);
@@ -1061,7 +1065,10 @@ sub add_directory {
                 $do_remove_items = 1;
                 splice (@_, 0, 2, @$item{qw/local_source_path local_rev/});
             }
-	    $visit_info[0] = 0; # don't pass thru for crazy replace
+	    if ($copypath) {
+		++$crazy_replace;
+		$visit_info[0] = 0; # don't pass thru for crazy replace
+	    }
             push @visit_info, $item;
         }
         $self->visit_path( $path, @visit_info );
@@ -1143,7 +1150,7 @@ sub add_directory {
 	my $ra = $self->{mirror}->_new_ra( url => "$self->{mirror}{source_root}$item->{remote_path}" );
 	my $compeditor = SVN::Mirror::Ra::CompositeEditor->new
 	    ( master_editor => $self,
-	      anchor => $tran_path, anchor_baton => $dir_baton );
+	      anchor => $path, anchor_baton => $dir_baton );
 	my ($reporter) =
 	    $ra->do_diff($self->{mirror}{working}, '', 1, 1,
 			 "$self->{mirror}{source}/$path", $compeditor);
@@ -1151,6 +1158,7 @@ sub add_directory {
 	$reporter->set_path('', $item->{remote_rev}, 0, @lock);
 	$reporter->finish_report ();
 
+        $self->close_directory($dir_baton);
 	return undef;
     }
 
@@ -1170,6 +1178,8 @@ sub add_file {
 
     my $method = 'add_file';
     my $action = $self->_in_modified_list ($path);
+    my $crazy_replace;
+
     if ((defined $self->{mirror}{skip_to}
          && $self->{mirror}{skip_to} >= $self->{mirror}{working})) {
         ### Skiped...
@@ -1192,6 +1202,9 @@ sub add_file {
         } elsif ($action eq 'R') {
             ### Replace...
 	    $self->delete_entry ($path, $self->{mirror}{headrev}, $pb, $_[-1]);
+	    if ($copypath) {
+		++$crazy_replace;
+	    }
         }
     } elsif ( $self->is_pass_thru() ) {
         ### Pass thru, and not in mod list.  SKip it...
@@ -1232,7 +1245,31 @@ sub add_file {
         if (!$@) { return $res }
     }
 
-    $self->SUPER::add_file ($tran_path, $pb, @_);
+    my $file_baton = $self->SUPER::add_file ($tran_path, $pb, @_);
+
+    if ($crazy_replace) {
+        my $item = $self->{mod_lists}{$path};
+	my ($anchor, $target) = "$self->{mirror}{rsource_root}$item->{remote_path}" =~ m{(.*)/([^/]+)};
+	my $ra = $self->{mirror}->_new_ra( url => $anchor );
+	my $compeditor = SVN::Mirror::Ra::CompositeEditor->new
+	    ( master_editor => $self,
+	      anchor => $path, anchor_baton => $pb,
+	      target => $target, target_baton => $file_baton );
+
+	my ($reporter) =
+	    $ra->do_diff($self->{mirror}{working}, $target, 1, 1,
+			 "$self->{mirror}{rsource}/$path", $compeditor);
+	my @lock = $SVN::Core::VERSION ge '1.2.0' ? (undef) : ();
+	my ($tgt) = $path =~ m{([^/]+)$/};
+	$reporter->set_path('', $item->{remote_rev}, 0, @lock);
+	$reporter->finish_report ();
+
+        $self->close_file($file_baton, undef); # XXX: md5
+
+	return undef;
+    }
+
+    return $file_baton;
 }
 
 sub close_directory {
