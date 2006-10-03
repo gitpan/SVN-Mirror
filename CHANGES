@@ -1,3 +1,10 @@
+[Changes for 0.71 - Oct 3, 2006]
+
+* Fix url escape issues for replaced copied source.
+
+* Fix a bug in replace with history, where the copy source is related
+  to the current node, but outside the mirror.
+
 [Changes for 0.70 - Aug 25, 2006]
 
 * More fixes for the new replace code.

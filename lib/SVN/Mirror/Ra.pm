@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.70';
+$VERSION = '0.71';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -367,7 +367,6 @@ sub mirror {
 	  sub { $newrev = $_[0];
 		$self->committed ($revmap, $date, $rev, @_) }));
 
-    # $editor->{_debug}++;
     $self->{working} = $rev;
     $editor->{mirror} = $self;
 
@@ -458,6 +457,7 @@ The structure of mod_lists:
 		? $self->{cb_copy_notify}->($self, $local_path, $rpath, $rrev)
 		: (undef, undef)
         }
+	$src_lpath =~ s/%/%25/g if defined $src_lpath;
         @$href{qw/local_source_path source_node_kind/} =
             ( $src_lpath, $source_node_kind );
 
@@ -498,7 +498,7 @@ The structure of mod_lists:
 		}
 	    }
 	}
-        if ( ($self->{skip_to} && $self->{skip_to} <= $rev) ||
+        if (($self->{skip_to} && $self->{skip_to} <= $rev) ||
 	     grep { my $href = $editor->{mod_lists}{$_};
                     !( ( ($href->{action} eq 'A' || $href->{action} eq 'R')
                          && ((defined $href->{local_rev}
@@ -844,8 +844,7 @@ sub _get_copy_path_rev {
     return unless exists $self->{mod_lists}{$path};
     my ($cp_path, $cp_rev) =
         @{$self->{mod_lists}{$path}}{qw/local_source_path local_rev/};
-    use URI::Escape;
-    return (uri_escape($cp_path), $cp_rev);
+    return ($cp_path, $cp_rev);
 }
 
 sub open_root {
@@ -877,7 +876,13 @@ sub open_file {
         return undef;
     }
     if ( ($action || '') eq 'R' ) {
-	return $self->add_file($path, $pb, undef, -1, $pool);
+        my $item = $self->{mod_lists}{$path};
+	return $self->add_file($path, $pb, undef, -1, $pool)
+	    unless defined $item->{remote_rev} xor defined $item->{local_rev};
+	# If we are replacing with history and the source is out side
+	# of the mirror, assume assume a simple replace.  Note that
+	# the server would send a delete+add if the source is actually
+	# unrelated.
     }
 
     ++$self->{changes};
@@ -1117,7 +1122,6 @@ sub add_directory {
 
     $method = "open_directory" if $path eq $self->{target};
     my $tran_path = $self->_translate_rel_path ($path);
-
     $method = 'open_directory'
         if $tran_path eq $self->{mirror}{target_path};
 
@@ -1147,10 +1151,13 @@ sub add_directory {
 	# current rev, which is unusable if we are reconstructing the
 	# copy.
         my $item = $self->{mod_lists}{$path};
-	my $ra = $self->{mirror}->_new_ra( url => "$self->{mirror}{source_root}$item->{remote_path}" );
+	my $remote_path = $item->{remote_path};
+	$remote_path =~ s/%/%25/g;
+	my $ra = $self->{mirror}->_new_ra( url => "$self->{mirror}{source_root}$remote_path" );
 	my $compeditor = SVN::Mirror::Ra::CompositeEditor->new
 	    ( master_editor => $self,
 	      anchor => $path, anchor_baton => $dir_baton );
+	$path =~ s/%/%25/g;
 	my ($reporter) =
 	    $ra->do_diff($self->{mirror}{working}, '', 1, 1,
 			 "$self->{mirror}{source}/$path", $compeditor);
@@ -1249,13 +1256,16 @@ sub add_file {
 
     if ($crazy_replace) {
         my $item = $self->{mod_lists}{$path};
-	my ($anchor, $target) = "$self->{mirror}{rsource_root}$item->{remote_path}" =~ m{(.*)/([^/]+)};
+	my $remote_path = $item->{remote_path};
+	$remote_path =~ s/%/%25/g;
+	my ($anchor, $target) = "$self->{mirror}{rsource_root}$remote_path" =~ m{(.*)/([^/]+)};
 	my $ra = $self->{mirror}->_new_ra( url => $anchor );
 	my $compeditor = SVN::Mirror::Ra::CompositeEditor->new
 	    ( master_editor => $self,
 	      anchor => $path, anchor_baton => $pb,
 	      target => $target, target_baton => $file_baton );
 
+	$path =~ s/%/%25/g;
 	my ($reporter) =
 	    $ra->do_diff($self->{mirror}{working}, $target, 1, 1,
 			 "$self->{mirror}{rsource}/$path", $compeditor);
