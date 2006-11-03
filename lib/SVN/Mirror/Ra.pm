@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.71';
+$VERSION = '0.72';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -165,7 +165,7 @@ sub load_state {
 
 sub _new_ra {
     my ($self, %arg) = @_;
-    $self->{config} ||= SVN::Core::config_get_config (undef, $self->{pool});
+    $self->{config} ||= SVN::Core::config_get_config(undef, $self->{pool});
     $self->{auth} ||= $self->_new_auth;
 
     SVN::Ra->new( url => $self->{rsource},
@@ -321,12 +321,12 @@ sub _revmap {
 
 sub committed {
     my ($self, $revmap, $date, $sourcerev, $rev) = @_;
-    $self->{fs}->change_rev_prop($rev, 'svn:date', $date);
-    # sync remote headrev too
-    $self->{fs}->change_rev_prop($rev, 'svm:headrev', $revmap."$self->{rsource_uuid}:$sourcerev\n");
-    $self->{fs}->change_rev_prop($rev, 'svm:incomplete', '*')
-	if $self->{rev_incomplete};
     $self->{headrev} = $rev;
+
+    # Even though we set this on the transaction, we need to set it
+    # again after commit, since the fs will always make it the current
+    # time after committing.
+    $self->{fs}->change_rev_prop($rev, 'svn:date', $date);
 
     $self->unlock ('mirror');
     print "Committed revision $rev from revision $sourcerev.\n";
@@ -361,9 +361,20 @@ sub mirror {
     $revmap = $self->_revmap ($rev, $ra) if $self->_relayed;
     $revmap ||= '';
 
+    my $txn = $self->{repos}->fs_begin_txn_for_commit
+	($self->{fs}->youngest_rev, $author, $msg);
+    $txn->change_prop('svk:commit', '*')
+	if $self->{fs}->revision_prop(0, 'svk:notify-commit');
+
+    $txn->change_prop('svn:date', $date);
+    # XXX: sync remote headrev too
+    $txn->change_prop('svm:headrev', $revmap."$self->{rsource_uuid}:$rev\n");
+    $txn->change_prop('svm:incomplete', '*')
+	if $self->{rev_incomplete};
+
     my $editor = SVN::Mirror::Ra::NewMirrorEditor->new
-	($self->{repos}->get_commit_editor
-	 ('', $self->{target_path}, $author, $msg,
+	($self->{repos}->get_commit_editor2
+	 ($txn, '', $self->{target_path}, $author, $msg,
 	  sub { $newrev = $_[0];
 		$self->committed ($revmap, $date, $rev, @_) }));
 

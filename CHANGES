@@ -1,3 +1,10 @@
+[Changes for 0.72 - Nov 2, 2006]
+
+* Use a custom transaction to commit the mirror rev, and have the
+  revision property set via txn for atomicy.
+
+* Requires Subversion 1.2.0.
+
 [Changes for 0.71 - Oct 3, 2006]
 
 * Fix url escape issues for replaced copied source.

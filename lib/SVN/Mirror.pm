@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package SVN::Mirror;
-our $VERSION = '0.71';
+our $VERSION = '0.72';
 use SVN::Core;
 use SVN::Repos;
 use SVN::Fs;
