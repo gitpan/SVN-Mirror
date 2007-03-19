@@ -2,7 +2,7 @@
 use Test::More;
 use SVN::Mirror;
 use File::Path;
-use File::Spec;
+use URI::file;
 use strict;
 
 plan skip_all => "relay doesn't work with svn < 1.1.0"
@@ -21,9 +21,7 @@ my $repos = SVN::Repos::create($repospath, undef, undef, undef,
 			       {'fs-type' => $ENV{SVNFSTYPE}})
     or die "failed to create repository at $repospath";
 
-my $uri = File::Spec->rel2abs( $repospath ) ;
-$uri =~ s{^|\\}{/}g if ($^O eq 'MSWin32');
-$uri = "file://$uri";
+my $uri = URI::file->new_abs( $repospath ) ;
 
 `svn mkdir -m 'init' $uri/source`;
 `svnadmin load --parent-dir source $repospath < t/test_repo.dump`;
@@ -34,9 +32,7 @@ my $rrepos = SVN::Repos::create($rrepospath, undef, undef, undef,
 				{'fs-type' => $ENV{SVNFSTYPE} || 'bdb'})
     or die "failed to create repository at $rrepospath";
 
-my $ruri = File::Spec->rel2abs( $rrepospath ) ;
-$ruri =~ s{^|\\}{/}g if ($^O eq 'MSWin32');
-$ruri = "file://$ruri";
+my $ruri = URI::file->new_abs( $rrepospath ) ;
 
 for (1..50) {
     `svn mkdir -m 'waste-rev' $ruri/waste`;

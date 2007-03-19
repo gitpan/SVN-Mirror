@@ -1,3 +1,10 @@
+[Changes for 0.73 - Mar 19, 2007]
+
+* In get_latest_rev, resolve the right HEAD for use in get_logs.
+  [Rolf Schäuble]
+
+* Fix tests on win32. [David Golden]
+
 [Changes for 0.72 - Nov 2, 2006]
 
 * Use a custom transaction to commit the mirror rev, and have the

@@ -4,7 +4,7 @@ $ENV{LC_ALL} = 'C';
 use Test::More;
 use SVN::Mirror;
 use File::Path;
-use File::Spec;
+use URI::file;
 use strict;
 
 plan skip_all => "can't find svnadmin"
@@ -23,9 +23,7 @@ sub setup_sync {
 				   {'fs-type' => $ENV{SVNFSTYPE}})
         or die "failed to create repository at $repospath";
 
-    my $uri = File::Spec->rel2abs( $repospath ) ;
-    $uri =~ s{^|\\}{/}g if ($^O eq 'MSWin32');
-    $uri = "file://$uri";
+    my $uri = URI::file->new_abs( $repospath ) ;
 
     `svn mkdir -m 'init' $uri/source`;
     `svnadmin load --parent-dir source $repospath < t/test_repo.dump`;

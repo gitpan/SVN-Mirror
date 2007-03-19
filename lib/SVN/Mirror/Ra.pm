@@ -1,6 +1,6 @@
 package SVN::Mirror::Ra;
 @ISA = ('SVN::Mirror');
-$VERSION = '0.72';
+$VERSION = '0.73';
 use strict;
 use SVN::Core;
 use SVN::Repos;
@@ -614,18 +614,17 @@ sub get_latest_rev {
     my ($rev, $headrev);
     my $offset = 2;
 
-    until (defined $rev) {
-	# there were once get_log2, but it then was refactored by the svn_ra
-	# overhaul.  We have to check the version.
-	# also, it's harmful to make use of the limited get_log for svn 1.2
-	# vs svnserve 1.1, it retrieves all logs and leave the connection
-	# in an inconsistent state.
-	if ($SVN::Core::VERSION ge '1.2.0' && $self->{rsource} !~ m/^svn/) {
-	    my $_start = $self->{rsource} =~ m/^file/ ? 0 : -1;
-	    $ra->get_log ([''], -1, $_start, 1, 0, 1,
-			   sub { $rev = $_[1] });
-	}
-	else {
+    # there were once get_log2, but it then was refactored by the svn_ra
+    # overhaul.  We have to check the version.
+    # also, it's harmful to make use of the limited get_log for svn 1.2
+    # vs svnserve 1.1, it retrieves all logs and leave the connection
+    # in an inconsistent state.
+    if ($SVN::Core::VERSION ge '1.2.0' && $self->{rsource} !~ m/^svn/) {
+        $ra->get_log ([''], $ra->get_latest_revnum, 0, 1, 0, 1,
+    		   sub { $rev = $_[1] });
+    }
+    else {
+        until (defined $rev) {
 	    $headrev = $ra->get_latest_revnum
 		unless defined $headrev;
 

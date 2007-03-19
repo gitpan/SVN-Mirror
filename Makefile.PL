@@ -13,6 +13,7 @@ clean_files	(qw't/repos* tmp vcp*');
 requires(
         'SVN::Core'   => $required_svn,
         'URI::Escape' => '0',
+        'URI::file' => '0',
         'Term::ReadKey' => '0',
         'SVN::Simple::Edit' => '0',
         'Date::Format' => '0',
