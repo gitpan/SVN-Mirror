@@ -7,7 +7,7 @@ use ExtUtils::MakeMaker ();
 
 use vars qw{$VERSION $ISCORE @ISA};
 BEGIN {
-	$VERSION = '0.71';
+	$VERSION = '0.77';
 	$ISCORE  = 1;
 	@ISA     = qw{Module::Install::Base};
 }
@@ -36,9 +36,9 @@ sub prompt {
 
 sub makemaker_args {
 	my $self = shift;
-	my $args = ($self->{makemaker_args} ||= {});
-	  %$args = ( %$args, @_ ) if @_;
-	$args;
+	my $args = ( $self->{makemaker_args} ||= {} );
+	%$args = ( %$args, @_ );
+	return $args;
 }
 
 # For mm args that take multiple space-seperated args,
@@ -110,13 +110,26 @@ sub tests_recursive {
 	$self->tests( join ' ', map { "$_/*.t" } sort keys %test_dir );
 }
 
+sub sign {
+    my $self = shift;
+    return $self->{values}{sign} if defined wantarray and ! @_;
+    $self->{values}{sign} = ( @_ ? $_[0] : 1 );
+    return $self;
+}
+
 sub write {
 	my $self = shift;
 	die "&Makefile->write() takes no arguments\n" if @_;
 
 	# Make sure we have a new enough
 	require ExtUtils::MakeMaker;
-	$self->configure_requires( 'ExtUtils::MakeMaker' => $ExtUtils::MakeMaker::VERSION );
+
+	# MakeMaker can complain about module versions that include
+	# an underscore, even though its own version may contain one!
+	# Hence the funny regexp to get rid of it.  See RT #35800
+	# for details.
+
+	$self->configure_requires( 'ExtUtils::MakeMaker' => $ExtUtils::MakeMaker::VERSION =~ /^(\d+\.\d+)/ );
 
 	# Generate the 
 	my $args = $self->makemaker_args;
@@ -175,7 +188,9 @@ sub write {
 
 	my $user_preop = delete $args{dist}->{PREOP};
 	if (my $preop = $self->admin->preop($user_preop)) {
-		$args{dist} = $preop;
+		foreach my $key ( keys %$preop ) {
+			$args{dist}->{$key} = $preop->{$key};
+		}
 	}
 
 	my $mm = ExtUtils::MakeMaker::WriteMakefile(%args);
@@ -242,4 +257,4 @@ sub postamble {
 
 __END__
 
-#line 371
+#line 386

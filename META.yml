@@ -1,14 +1,19 @@
-abstract: Mirror remote repositories to local subversion repository
-author: Chia-liang Kao <clkao@clkao.org>
+---
+abstract: 'Mirror remote repositories to local subversion repository'
+author:
+  - 'Chia-liang Kao <clkao@clkao.org>'
 distribution_type: module
-generated_by: Module::Install version 0.640
+generated_by: 'Module::Install version 0.77'
 license: perl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
 name: SVN-Mirror
-no_index: 
-  directory: 
+no_index:
+  directory:
     - inc
     - t
-requires: 
+requires:
   Class::Accessor: 0
   Date::Format: 0
   File::chdir: 0
@@ -17,4 +22,6 @@ requires:
   Term::ReadKey: 0
   URI::Escape: 0
   URI::file: 0
-version: 0.73
+resources:
+  license: http://dev.perl.org/licenses/
+version: 0.75
